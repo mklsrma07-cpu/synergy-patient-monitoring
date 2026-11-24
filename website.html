@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fluid & Patient Monitoring System — OOP Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F5F7F6; --panel:#FFFFFF; --panel-2:#EEF3F1; --line:#D6E1DD;
+    --text:#0E2523; --text-soft:#4C6864; --text-faint:#7C9793;
+    --teal:#0E8C7A; --amber:#B9781A; --coral:#C43D3D; --blue:#1E6FA6;
+    --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --serif: 'Fraunces', Georgia, 'Times New Roman', serif;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    box-sizing:border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#081412; --panel:#0E1B19; --panel-2:#0B1715; --line:#1E3833;
+      --text:#E7F3F0; --text-soft:#9FBDB7; --text-faint:#6C8985;
+      --teal:#37E0BD; --amber:#F0A63C; --coral:#FF6B5C; --blue:#5FC4F0;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#081412; --panel:#0E1B19; --panel-2:#0B1715; --line:#1E3833;
+    --text:#E7F3F0; --text-soft:#9FBDB7; --text-faint:#6C8985;
+    --teal:#37E0BD; --amber:#F0A63C; --coral:#FF6B5C; --blue:#5FC4F0;
+  }
+  :root[data-theme="light"]{
+    --bg:#F5F7F6; --panel:#FFFFFF; --panel-2:#EEF3F1; --line:#D6E1DD;
+    --text:#0E2523; --text-soft:#4C6864; --text-faint:#7C9793;
+    --teal:#0E8C7A; --amber:#B9781A; --coral:#C43D3D; --blue:#1E6FA6;
+  }
+  html{scroll-behavior:smooth; scroll-padding-top: env(safe-area-inset-top, 0px);}
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text); font-family:var(--sans);
+    -webkit-font-smoothing:antialiased; line-height:1.5;
+  }
+  img,svg{max-width:100%;}
+  .wrap{max-width:1080px; margin:0 auto; padding:0 28px;}
+  a{color:inherit;}
+
+  /* ---------- Nav ---------- */
+  header.nav{
+    position:sticky; top:0; z-index:50; top: env(safe-area-inset-top, 0px);
+    background:color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter:blur(10px); border-bottom:1px solid var(--line);
+  }
+  .navrow{display:flex; align-items:center; justify-content:space-between; padding:16px 28px; max-width:1080px; margin:0 auto;}
+  .brand{display:flex; align-items:center; gap:10px; font-family:var(--mono); font-size:13px; letter-spacing:.02em; color:var(--text-soft);}
+  .pulse-dot{width:8px; height:8px; border-radius:50%; background:var(--teal); box-shadow:0 0 0 0 color-mix(in srgb, var(--teal) 60%, transparent); animation:ping 2.2s ease-out infinite;}
+  @keyframes ping{
+    0%{box-shadow:0 0 0 0 color-mix(in srgb, var(--teal) 45%, transparent);}
+    70%{box-shadow:0 0 0 9px color-mix(in srgb, var(--teal) 0%, transparent);}
+    100%{box-shadow:0 0 0 0 color-mix(in srgb, var(--teal) 0%, transparent);}
+  }
+  nav.links{display:flex; gap:22px; font-size:13.5px;}
+  nav.links a{text-decoration:none; color:var(--text-soft); border-bottom:1px solid transparent; padding-bottom:2px;}
+  nav.links a:hover{color:var(--text); border-color:var(--teal);}
+  @media (max-width:760px){ nav.links{display:none;} }
+
+  /* ---------- Hero ---------- */
+  .hero{padding:72px 0 56px; border-bottom:1px solid var(--line);}
+  .eyebrow-row{display:flex; align-items:center; gap:10px; font-family:var(--mono); font-size:12.5px; color:var(--text-faint); margin-bottom:22px;}
+  .eyebrow-row .sep{width:22px; height:1px; background:var(--line);}
+  .hero h1{
+    font-family:var(--serif); font-weight:500; font-size:clamp(34px,5.4vw,60px);
+    line-height:1.05; margin:0 0 20px; max-width:15ch; letter-spacing:-0.01em;
+  }
+  .hero p.lede{max-width:56ch; font-size:17.5px; color:var(--text-soft); margin:0 0 30px;}
+  .hero-cta{display:flex; gap:14px; flex-wrap:wrap; align-items:center;}
+  .btn{
+    display:inline-flex; align-items:center; gap:8px; font-family:var(--sans); font-weight:600; font-size:14.5px;
+    padding:12px 20px; border-radius:3px; text-decoration:none; cursor:pointer; border:1px solid transparent;
+  }
+  .btn-solid{background:var(--teal); color:#04211C;}
+  .btn-solid:hover{filter:brightness(1.06);}
+  .btn-outline{border-color:var(--line); color:var(--text);}
+  .btn-outline:hover{border-color:var(--teal);}
+
+  .waveform{margin-top:48px; border:1px solid var(--line); background:var(--panel); border-radius:6px; padding:0; overflow:hidden;}
+  .wave-head{display:flex; justify-content:space-between; align-items:center; padding:12px 18px; border-bottom:1px solid var(--line); font-family:var(--mono); font-size:12px; color:var(--text-faint);}
+  .wave-svg{display:block; width:100%; height:auto;}
+  .wave-path{fill:none; stroke:var(--teal); stroke-width:2; stroke-linecap:round; stroke-linejoin:round;
+    stroke-dasharray:1400; stroke-dashoffset:1400; animation:draw 3.4s ease-in-out infinite;}
+  @keyframes draw{ 0%{stroke-dashoffset:1400;} 55%{stroke-dashoffset:0;} 100%{stroke-dashoffset:-40;} }
+  @media (prefers-reduced-motion:reduce){ .wave-path{animation:none; stroke-dashoffset:0;} .pulse-dot{animation:none;} }
+
+  /* ---------- Section shell ---------- */
+  section{padding:64px 0; border-bottom:1px solid var(--line);}
+  .kicker{font-family:var(--mono); font-size:12.5px; color:var(--teal); margin:0 0 10px;}
+  h2.sec-title{font-family:var(--serif); font-weight:500; font-size:clamp(24px,3.2vw,34px); margin:0 0 14px; letter-spacing:-.01em;}
+  .sec-sub{max-width:64ch; color:var(--text-soft); font-size:15.5px; margin:0 0 36px;}
+
+  /* ---------- Problem / research two-col ---------- */
+  .split{display:grid; grid-template-columns:1fr 1fr; gap:44px;}
+  @media (max-width:800px){ .split{grid-template-columns:1fr;} }
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:26px 26px;}
+  .card h3{margin:0 0 12px; font-size:15px; font-family:var(--mono); color:var(--text-faint); font-weight:500;}
+  .card p{margin:0; color:var(--text-soft); font-size:15px;}
+  ul.research{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:14px;}
+  ul.research li{position:relative; padding-left:20px; font-size:15px; color:var(--text-soft); border-bottom:1px dashed var(--line); padding-bottom:14px;}
+  ul.research li:last-child{border-bottom:none; padding-bottom:0;}
+  ul.research li::before{content:""; position:absolute; left:0; top:7px; width:6px; height:6px; border-radius:50%; background:var(--teal);}
+
+  /* ---------- Solution ---------- */
+  .goal-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:6px; overflow:hidden;}
+  @media (max-width:800px){ .goal-grid{grid-template-columns:repeat(2,1fr);} }
+  .goal{background:var(--panel); padding:20px 18px; font-size:13.5px; color:var(--text-soft);}
+  .goal b{display:block; color:var(--text); font-size:14.5px; margin-bottom:4px; font-weight:600;}
+  .formula{margin-top:28px; border:1px solid var(--line); border-radius:6px; padding:22px 26px; background:var(--panel-2); font-family:var(--mono); font-size:15px; color:var(--teal); display:flex; flex-wrap:wrap; gap:18px 30px; align-items:baseline;}
+  .formula .ex{color:var(--text-faint); font-size:13px;}
+
+  /* ---------- Workflow ---------- */
+  .flow{display:flex; flex-direction:column; gap:0;}
+  .flow-row{display:grid; grid-template-columns:34px 1fr; gap:16px;}
+  .flow-node{display:flex; flex-direction:column; align-items:center;}
+  .flow-dot{width:10px; height:10px; border-radius:50%; background:var(--bg); border:2px solid var(--teal); margin-top:6px;}
+  .flow-line{flex:1; width:1px; background:var(--line); min-height:34px;}
+  .flow-row:last-child .flow-line{display:none;}
+  .flow-body{padding-bottom:28px;}
+  .flow-tag{font-family:var(--mono); font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.06em;}
+  .flow-body h4{margin:4px 0 4px; font-size:16px; font-weight:600;}
+  .flow-body p{margin:0; font-size:14px; color:var(--text-soft);}
+
+  /* ---------- OOP concept panels ---------- */
+  .concept{display:grid; grid-template-columns:1fr 1fr; gap:0; border:1px solid var(--line); border-radius:6px; overflow:hidden; margin-bottom:22px;}
+  @media (max-width:820px){ .concept{grid-template-columns:1fr;} }
+  .concept-info{padding:28px 30px; background:var(--panel);}
+  .concept-code{padding:26px 26px; background:var(--panel-2); border-left:1px solid var(--line); font-family:var(--mono); font-size:12.8px; line-height:1.65; overflow-x:auto; color:var(--text-soft);}
+  @media (max-width:820px){ .concept-code{border-left:none; border-top:1px solid var(--line);} }
+  .concept-info .num{font-family:var(--mono); font-size:12px; color:var(--text-faint);}
+  .concept-info h3{margin:6px 0 12px; font-family:var(--serif); font-size:22px; font-weight:500;}
+  .concept-info p{margin:0 0 14px; font-size:14.5px; color:var(--text-soft);}
+  .concept-info p:last-child{margin-bottom:0;}
+  .concept-info .impl{border-top:1px solid var(--line); margin-top:16px; padding-top:14px; font-size:13.5px; color:var(--text-faint);}
+  .concept-info .impl b{color:var(--text-soft); font-weight:600;}
+  .featured{outline:2px solid var(--teal); outline-offset:-1px;}
+  .featured .concept-info{background:color-mix(in srgb, var(--teal) 6%, var(--panel));}
+  pre{margin:0; white-space:pre;}
+  .tok-kw{color:var(--blue);} .tok-type{color:var(--amber);} .tok-str{color:var(--teal);} .tok-com{color:var(--text-faint); font-style:italic;}
+
+  /* ---------- Dashboard CTA ---------- */
+  .cta-panel{
+    border:1px solid var(--line); border-radius:8px; background:var(--panel);
+    padding:44px; display:flex; justify-content:space-between; align-items:center; gap:30px; flex-wrap:wrap;
+  }
+  .cta-panel h3{font-family:var(--serif); font-weight:500; font-size:26px; margin:0 0 8px;}
+  .cta-panel p{margin:0; color:var(--text-soft); font-size:15px; max-width:48ch;}
+
+  /* ---------- Team ---------- */
+  .team-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:6px; overflow:hidden;}
+  @media (max-width:760px){ .team-grid{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:520px){ .team-grid{grid-template-columns:1fr;} }
+  .member{background:var(--panel); padding:20px 18px;}
+  .member .name{font-weight:600; font-size:14.5px; margin-bottom:4px;}
+  .member .role{font-size:12.5px; color:var(--text-faint); font-family:var(--mono);}
+
+  footer{padding:34px 0 calc(34px + env(safe-area-inset-bottom, 0px)); text-align:center;}
+  footer p{margin:0; font-size:12.5px; color:var(--text-faint); font-family:var(--mono);}
+
+  /* ---------- Live patient tracker (embedded dashboard) ---------- */
+  #tracker{padding:64px 0;}
+  .mon-console{border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--panel);}
+  .mon-topbar{display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:14px 20px; border-bottom:1px solid var(--line);}
+  .mon-htitle{display:flex; align-items:center; gap:10px;}
+  .mon-dot{width:9px; height:9px; border-radius:50%; background:var(--teal); animation:monblink 1.6s ease-in-out infinite;}
+  @keyframes monblink{0%,100%{opacity:1;}50%{opacity:.25;}}
+  @media (prefers-reduced-motion:reduce){.mon-dot{animation:none;}}
+  .mon-topbar h4{font-size:14.5px; margin:0; font-weight:700;}
+  .mon-topbar .mon-sub{font-family:var(--mono); font-size:11px; color:var(--text-faint);}
+  #mon-clock{font-family:var(--mono); font-size:12px; color:var(--text-soft);}
+
+  .mon-main{display:grid; grid-template-columns:320px 1fr;}
+  @media (max-width:860px){.mon-main{grid-template-columns:1fr;}}
+  .mon-sidebar{border-right:1px solid var(--line); display:flex; flex-direction:column;}
+  @media (max-width:860px){.mon-sidebar{border-right:none; border-bottom:1px solid var(--line);}}
+  .mon-block{padding:18px 18px; border-bottom:1px solid var(--line);}
+  .mon-block-title{font-family:var(--mono); font-size:10.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.06em; margin:0 0 12px;}
+  #tracker label{display:block; font-size:12px; color:var(--text-soft); margin:9px 0 5px;}
+  #tracker label:first-of-type{margin-top:0;}
+  #tracker input[type=text], #tracker input[type=number], #tracker select{
+    width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:4px;
+    background:var(--panel-2); color:var(--text); font-size:13.5px; font-family:var(--sans);
+  }
+  #tracker input:focus, #tracker select:focus{outline:none; border-color:var(--teal);}
+  .mon-row2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  #tracker button{font-family:var(--sans); cursor:pointer;}
+  .mon-btn{border:none; border-radius:4px; padding:10px 16px; font-weight:600; font-size:13.5px;}
+  .mon-btn-primary{background:var(--teal); color:#04211C; width:100%; margin-top:14px;}
+  .mon-btn-primary:hover{filter:brightness(1.06);}
+  .mon-btn-ghost{background:transparent; border:1px solid var(--line); color:var(--text-soft); padding:6px 10px; font-size:12px; border-radius:4px;}
+  .mon-btn-ghost:hover{border-color:var(--coral); color:var(--coral);}
+
+  .mon-roster{max-height:280px; overflow-y:auto; padding:10px 12px;}
+  .mon-empty{font-size:12px; color:var(--text-faint); padding:14px 6px;}
+  .mon-card{border:1px solid var(--line); border-radius:6px; padding:11px 12px; margin-bottom:8px; cursor:pointer; background:var(--panel-2); transition:border-color .12s ease;}
+  .mon-card:hover{border-color:var(--text-faint);}
+  .mon-card.active{border-color:var(--teal); box-shadow:0 0 0 1px var(--teal) inset;}
+  .mon-card .mc-top{display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;}
+  .mon-card .mc-name{font-weight:600; font-size:13px;}
+  .mon-card .mc-type{font-family:var(--mono); font-size:10px; color:var(--text-faint); text-transform:uppercase;}
+  .mon-chip{width:8px; height:8px; border-radius:50%; flex-shrink:0;}
+  .mon-ok{background:var(--teal);} .mon-bad{background:var(--coral); box-shadow:0 0 0 3px color-mix(in srgb, var(--coral) 22%, transparent);}
+
+  .mon-content{padding:24px 24px; max-height:640px; overflow-y:auto;}
+  .mon-content .mon-empty-state{display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; min-height:340px; color:var(--text-faint); gap:8px;}
+  .mon-content .mon-empty-state h3{font-size:15.5px; color:var(--text-soft); margin:0; font-weight:600; font-family:var(--sans);}
+  .mon-content .mon-empty-state p{font-size:13px; margin:0; max-width:38ch;}
+
+  .mon-dhead{display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap; margin-bottom:18px;}
+  .mon-dhead h3{margin:0 0 4px; font-size:19px; font-weight:700; font-family:var(--sans);}
+  .mon-dhead .mon-meta{font-family:var(--mono); font-size:11.5px; color:var(--text-faint);}
+  .mon-alert{display:flex; align-items:center; gap:8px; padding:10px 14px; border-radius:6px; font-size:13px; font-weight:600; border:1px solid var(--line);}
+  .mon-alert.ok{background:color-mix(in srgb, var(--teal) 10%, var(--panel)); color:var(--teal); border-color:color-mix(in srgb, var(--teal) 35%, var(--line));}
+  .mon-alert.bad{background:color-mix(in srgb, var(--coral) 10%, var(--panel)); color:var(--coral); border-color:color-mix(in srgb, var(--coral) 35%, var(--line));}
+
+  .mon-vitals{display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:6px; overflow:hidden; margin:18px 0;}
+  @media (max-width:640px){.mon-vitals{grid-template-columns:repeat(2,1fr);}}
+  .mon-vital{background:var(--panel); padding:14px 14px;}
+  .mon-vital .mv-label{font-family:var(--mono); font-size:10px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.05em;}
+  .mon-vital .mv-val{font-family:var(--mono); font-size:21px; font-weight:600; margin-top:5px;}
+  .mon-vital .mv-val span{font-size:12px; color:var(--text-faint); font-weight:400;}
+
+  .mon-two{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:18px;}
+  @media (max-width:700px){.mon-two{grid-template-columns:1fr;}}
+  .mon-panel{border:1px solid var(--line); border-radius:6px; background:var(--panel); padding:16px;}
+  .mon-panel h4{margin:0 0 12px; font-size:11.5px; font-family:var(--mono); color:var(--text-faint); text-transform:uppercase; letter-spacing:.05em; font-weight:500;}
+  .mon-fluid-row{display:flex; gap:10px; align-items:end;}
+  .mon-fluid-row > div{flex:1;}
+  .mon-balance{margin-top:14px; padding:12px 14px; border-radius:5px; background:var(--panel-2); font-family:var(--mono);}
+  .mon-balance .mb-num{font-size:20px; font-weight:600;}
+  .mon-balance .mb-label{font-size:10.5px; color:var(--text-faint); margin-top:2px;}
+  .mon-pos{color:var(--teal);} .mon-neg{color:var(--coral);}
+  .mon-trace{font-family:var(--mono); font-size:12px; background:var(--panel-2); border-radius:5px; padding:12px 14px; color:var(--text-soft); line-height:1.65; white-space:pre-wrap; word-break:break-word;}
+  .mon-trace .mk{color:var(--blue);} .mon-trace .mt{color:var(--amber);} .mon-trace .mcm{color:var(--text-faint);}
+  .mon-log{margin-top:18px;}
+  .mon-log-item{display:flex; gap:10px; padding:8px 0; border-bottom:1px solid var(--line); font-size:12.5px;}
+  .mon-log-item:last-child{border-bottom:none;}
+  .mon-log-item .ml-t{font-family:var(--mono); font-size:10.5px; color:var(--text-faint); white-space:nowrap;}
+  #mon-toasts{position:fixed; bottom:calc(20px + env(safe-area-inset-bottom, 0px)); right:20px; display:flex; flex-direction:column; gap:8px; z-index:100;}
+  .mon-toast{background:var(--coral); color:#2A0D0D; padding:11px 16px; border-radius:5px; font-size:13px; font-weight:600; box-shadow:0 6px 18px rgba(0,0,0,.18); max-width:320px;}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="navrow">
+    <div class="brand"><span class="pulse-dot"></span> FLUID + PATIENT MONITOR — GROUP 6</div>
+    <nav class="links">
+      <a href="#problem">Problem</a>
+      <a href="#solution">Solution</a>
+      <a href="#workflow">Workflow</a>
+      <a href="#concepts">OOP Design</a>
+      <a href="#tracker">Track a patient</a>
+      <a href="#team">Team</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <div class="eyebrow-row">Object-Oriented Programming <span class="sep"></span> Mid Evaluation</div>
+    <h1>A monitoring system built the way a body needs watching: continuously, and through many types at once.</h1>
+    <p class="lede">A modular Java prototype for coma and paralysis patients, organizing patient records, vitals, and fluid balance around one idea: polymorphism and reusability, so one line of code can watch many kinds of patients.</p>
+    <div class="hero-cta">
+      <a href="#concepts" class="btn btn-solid">Read the design</a>
+      <a href="#tracker" class="btn btn-outline">Track a patient</a>
+    </div>
+
+    <div class="waveform">
+      <div class="wave-head"><span>PATIENT_04 — LIVE TRACE</span><span>25 mm/s</span></div>
+      <svg class="wave-svg" viewBox="0 0 1000 140" preserveAspectRatio="none">
+        <line x1="0" y1="70" x2="1000" y2="70" stroke="currentColor" stroke-opacity="0.08" stroke-width="1"/>
+        <path class="wave-path" d="M0,70 L120,70 L140,70 L155,20 L170,120 L185,40 L200,70 L260,70 L300,70 L320,55 L340,70 L400,70 L440,70 L460,20 L475,120 L490,40 L505,70 L560,70 L600,70 L620,55 L640,70 L700,70 L740,70 L760,20 L775,120 L790,40 L805,70 L860,70 L900,70 L920,55 L940,70 L1000,70"/>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<section id="problem">
+  <div class="wrap">
+    <p class="kicker">01 — Why this exists</p>
+    <h2 class="sec-title">Continuous care needs continuous, structured data</h2>
+    <p class="sec-sub">Patients with coma or severe paralysis require continuous observation, but fragmented patient and fluid data makes systematic monitoring difficult.</p>
+    <div class="split">
+      <div class="card">
+        <h3>Problem statement</h3>
+        <p>Our system provides a structured way to record patient data, track fluid balance, and generate alerts, so observation doesn't depend on scattered notes and memory.</p>
+      </div>
+      <div class="card">
+        <h3>Research background</h3>
+        <ul class="research">
+          <li>Patient monitoring is based on repeated observations rather than a single measurement.</li>
+          <li>Heart rate, oxygen saturation, temperature, and consciousness are the key monitoring parameters.</li>
+          <li>Fluid balance requires systematic recording of intake and output.</li>
+          <li>Immobility and paralysis create additional care considerations.</li>
+          <li>A good system organizes information and supports observation of change over time.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="solution">
+  <div class="wrap">
+    <p class="kicker">02 — What we built</p>
+    <h2 class="sec-title">Our proposed solution</h2>
+    <p class="sec-sub">A modular Java-based OOP prototype that organizes patient information, physiological observations, fluid monitoring, and prototype alerts.</p>
+    <div class="goal-grid">
+      <div class="goal"><b>Structured records</b>Create structured patient records</div>
+      <div class="goal"><b>Patient categories</b>Support different patient categories</div>
+      <div class="goal"><b>Observations</b>Record physiological observations</div>
+      <div class="goal"><b>Fluid tracking</b>Record fluid intake and output</div>
+      <div class="goal"><b>Balance</b>Calculate fluid balance automatically</div>
+      <div class="goal"><b>Alerts</b>Generate prototype alerts</div>
+      <div class="goal"><b>OOP principles</b>Demonstrate class design in practice</div>
+      <div class="goal"><b>Future-ready</b>Foundation for sensor integration</div>
+    </div>
+    <div class="formula">
+      <span>FLUID BALANCE = FLUID INTAKE − FLUID OUTPUT</span>
+      <span class="ex">Example: 1800 mL − 1500 mL = +300 mL</span>
+    </div>
+  </div>
+</section>
+
+<section id="workflow">
+  <div class="wrap">
+    <p class="kicker">03 — How a session runs</p>
+    <h2 class="sec-title">Program workflow</h2>
+    <p class="sec-sub">Every run of the prototype follows the same sequence, whichever patient type is behind it — that consistency is what the class design makes possible.</p>
+    <div class="flow">
+      <div class="flow-row"><div class="flow-node"><div class="flow-dot"></div><div class="flow-line"></div></div><div class="flow-body"><span class="flow-tag">Start</span><h4>Launch monitor</h4><p>The prototype starts and prompts for a new patient session.</p></div></div>
+      <div class="flow-row"><div class="flow-node"><div class="flow-dot"></div><div class="flow-line"></div></div><div class="flow-body"><span class="flow-tag">Input</span><h4>Enter patient details</h4><p>Name, age, and baseline information are recorded.</p></div></div>
+      <div class="flow-row"><div class="flow-node"><div class="flow-dot"></div><div class="flow-line"></div></div><div class="flow-body"><span class="flow-tag">Select</span><h4>Select patient type</h4><p>Coma, paralysis, or another category extending the base <code>Patient</code> class.</p></div></div>
+      <div class="flow-row"><div class="flow-node"><div class="flow-dot"></div><div class="flow-line"></div></div><div class="flow-body"><span class="flow-tag">Create</span><h4>Create patient object</h4><p>A new object is instantiated from that type's class using <code>new</code>.</p></div></div>
+      <div class="flow-row"><div class="flow-node"><div class="flow-dot"></div><div class="flow-line"></div></div><div class="flow-body"><span class="flow-tag">Record</span><h4>Enter monitoring data</h4><p>Heart rate, SpO₂, and temperature are logged for that object.</p></div></div>
+      <div class="flow-row"><div class="flow-node"><div class="flow-dot"></div><div class="flow-line"></div></div><div class="flow-body"><span class="flow-tag">Record</span><h4>Enter fluid information</h4><p>Intake and output volumes are added to the fluid record.</p></div></div>
+      <div class="flow-row"><div class="flow-node"><div class="flow-dot"></div><div class="flow-line"></div></div><div class="flow-body"><span class="flow-tag">Compute</span><h4>Calculate fluid balance</h4><p>Balance is derived automatically as intake minus output.</p></div></div>
+      <div class="flow-row"><div class="flow-node"><div class="flow-dot"></div><div class="flow-line"></div></div><div class="flow-body"><span class="flow-tag">Evaluate</span><h4>Check prototype alerts</h4><p>Each patient type's overridden alert logic runs against its own thresholds.</p></div></div>
+      <div class="flow-row"><div class="flow-node"><div class="flow-dot"></div></div><div class="flow-body"><span class="flow-tag">End</span><h4>Display patient report</h4><p>A summary is shown and the session ends.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<section id="concepts">
+  <div class="wrap">
+    <p class="kicker">04 — Under the hood</p>
+    <h2 class="sec-title">Seven OOP principles, one patient hierarchy</h2>
+    <p class="sec-sub">Every concept below is demonstrated inside the same small hierarchy: a base <code>Patient</code> class, and the specific patient types that extend it.</p>
+
+    <div class="concept">
+      <div class="concept-info">
+        <span class="num">01</span>
+        <h3>Class &amp; object</h3>
+        <p>A class is a blueprint used to create objects — it defines the attributes and methods an object will have. An object is one instance of that blueprint, with its own values.</p>
+        <div class="impl"><b>In our project —</b> a <code>Patient</code> class holds common fields like name, age, heart rate, SpO₂, and temperature. Each real patient is created as its own object with <code>new</code>.</div>
+      </div>
+      <div class="concept-code"><pre><span class="tok-kw">class</span> <span class="tok-type">Patient</span> {
+  <span class="tok-kw">String</span> name;
+  <span class="tok-kw">int</span> age;
+  <span class="tok-kw">double</span> heartRate, spo2, temp;
+}
+
+<span class="tok-type">Patient</span> p1 = <span class="tok-kw">new</span> <span class="tok-type">Patient</span>();
+p1.name = <span class="tok-str">"R. Sharma"</span>;
+p1.age  = 47;</pre></div>
+    </div>
+
+    <div class="concept">
+      <div class="concept-info">
+        <span class="num">02</span>
+        <h3>Encapsulation</h3>
+        <p>Encapsulation combines data and methods inside a class and restricts direct access to that data, using private fields with public getters and setters.</p>
+        <div class="impl"><b>In our project —</b> patient information is sensitive and shouldn't be freely modified from anywhere in the program, so a value like heart rate can only change through a validating setter.</div>
+      </div>
+      <div class="concept-code"><pre><span class="tok-kw">private</span> <span class="tok-kw">double</span> heartRate;
+
+<span class="tok-kw">public void</span> setHeartRate(<span class="tok-kw">double</span> hr) {
+  <span class="tok-kw">if</span> (hr &gt; 0) heartRate = hr;
+  <span class="tok-com">// invalid values are rejected,
+  // not silently written</span>
+}</pre></div>
+    </div>
+
+    <div class="concept">
+      <div class="concept-info">
+        <span class="num">03</span>
+        <h3>Constructor &amp; inheritance</h3>
+        <p>A constructor shares the class's name, has no return type, and runs automatically on <code>new</code> — it initializes every attribute at once instead of assigning each one by hand.</p>
+        <div class="impl"><b>Inheritance gives us —</b> code reusability, less duplication, better organization, and a clear relationship between patient types that all share the base <code>Patient</code> class.</div>
+      </div>
+      <div class="concept-code"><pre><span class="tok-kw">class</span> <span class="tok-type">ComaPatient</span> <span class="tok-kw">extends</span> <span class="tok-type">Patient</span> {
+  <span class="tok-type">ComaPatient</span>(<span class="tok-kw">String</span> name, <span class="tok-kw">int</span> age) {
+    <span class="tok-kw">this</span>.name = name;
+    <span class="tok-kw">this</span>.age  = age;
+  }
+}</pre></div>
+    </div>
+
+    <div class="concept">
+      <div class="concept-info">
+        <span class="num">04</span>
+        <h3>Method overriding</h3>
+        <p>Overriding happens when a child class provides its own implementation of a method that already exists in the parent — same name, same parameters, same return type.</p>
+        <div class="impl"><b>In our project —</b> different patient types need different alert behavior even though they share one parent class, so each subtype overrides <code>checkAlert()</code> for itself.</div>
+      </div>
+      <div class="concept-code"><pre><span class="tok-kw">class</span> <span class="tok-type">ParalysisPatient</span> <span class="tok-kw">extends</span> <span class="tok-type">Patient</span> {
+  <span class="tok-kw">@Override</span>
+  <span class="tok-kw">boolean</span> checkAlert() {
+    <span class="tok-kw">return</span> spo2 &lt; 92;
+  }
+}</pre></div>
+    </div>
+
+    <div class="concept">
+      <div class="concept-info">
+        <span class="num">05</span>
+        <h3>Abstraction</h3>
+        <p>Abstraction hides unnecessary implementation detail and shows only the essential functionality — like using an ATM without knowing the internal banking process.</p>
+        <div class="impl"><b>In our project —</b> we know an alert should perform a checking operation, but the exact implementation differs by alert type, so an abstract class defines the common structure.</div>
+      </div>
+      <div class="concept-code"><pre><span class="tok-kw">abstract class</span> <span class="tok-type">AlertSystem</span> {
+  <span class="tok-kw">abstract boolean</span> checkAlert();
+  <span class="tok-com">// each concrete alert decides
+  // its own checking logic</span>
+}</pre></div>
+    </div>
+
+    <div class="concept">
+      <div class="concept-info">
+        <span class="num">06</span>
+        <h3>Exception handling</h3>
+        <p>Exception handling deals with unexpected or invalid situations without crashing the whole program — like negative age, negative fluid values, or an invalid patient type.</p>
+        <div class="impl"><b>Result —</b> a system that's more robust, safer, more user-friendly, and far less likely to crash on incorrect input.</div>
+      </div>
+      <div class="concept-code"><pre><span class="tok-kw">try</span> {
+  <span class="tok-kw">if</span> (intake &lt; 0)
+    <span class="tok-kw">throw new</span> <span class="tok-type">IllegalArgumentException</span>(
+      <span class="tok-str">"Fluid intake cannot be negative"</span>);
+} <span class="tok-kw">catch</span> (<span class="tok-type">IllegalArgumentException</span> e) {
+  showError(e.getMessage());
+}</pre></div>
+    </div>
+
+    <div class="concept featured">
+      <div class="concept-info">
+        <span class="num">07 — featured</span>
+        <h3>Polymorphism &amp; reusability</h3>
+        <p>Polymorphism means "many forms." It lets the same reference or method call work with different types of objects — our monitoring system can work with a general <code>Patient</code> reference without needing separate code for every patient type. That makes the system flexible, extensible, reusable, and easier to maintain.</p>
+        <div class="impl"><b>Reusability —</b> writing code once and using it many times. If we later add another type, such as <code>PostSurgeryPatient</code>, we extend the existing <code>Patient</code> class instead of building everything from scratch.</div>
+      </div>
+      <div class="concept-code"><pre><span class="tok-type">Patient</span> current = new_patient_of_any_type();
+
+<span class="tok-com">// same call, different behavior —
+// resolved by the object's actual type</span>
+<span class="tok-kw">if</span> (current.checkAlert()) {
+  raisePrototypeAlert(current);
+}
+
+<span class="tok-com">// adding a new type later:</span>
+<span class="tok-kw">class</span> <span class="tok-type">PostSurgeryPatient</span> <span class="tok-kw">extends</span> <span class="tok-type">Patient</span> {
+  <span class="tok-kw">@Override</span>
+  <span class="tok-kw">boolean</span> checkAlert() { <span class="tok-kw">return</span> temp &gt; 38.5; }
+}</pre></div>
+    </div>
+  </div>
+</section>
+
+<section id="tracker">
+  <div class="wrap">
+    <p class="kicker">05 — Try it</p>
+    <h2 class="sec-title">Track a patient, right here</h2>
+    <p class="sec-sub">Create a patient object below and watch its vitals, fluid balance, and alert logic resolve live. Add a Coma and a Paralysis patient with the same low SpO₂ to see the overridden thresholds diverge.</p>
+
+    <div class="mon-console">
+      <div class="mon-topbar">
+        <div class="mon-htitle">
+          <span class="mon-dot"></span>
+          <div>
+            <h4>Fluid + Patient Monitoring Dashboard</h4>
+            <div class="mon-sub">Group 6 — OOP prototype, live in the browser</div>
+          </div>
+        </div>
+        <div id="mon-clock">—</div>
+      </div>
+
+      <div class="mon-main">
+        <aside class="mon-sidebar">
+          <div class="mon-block">
+            <p class="mon-block-title">New patient object</p>
+            <label for="mf-name">Name</label>
+            <input type="text" id="mf-name" placeholder="e.g. R. Sharma">
+            <div class="mon-row2">
+              <div>
+                <label for="mf-age">Age</label>
+                <input type="number" id="mf-age" placeholder="47">
+              </div>
+              <div>
+                <label for="mf-type">Patient type</label>
+                <select id="mf-type">
+                  <option value="Coma">Coma</option>
+                  <option value="Paralysis">Paralysis</option>
+                  <option value="PostSurgery">Post-surgery</option>
+                </select>
+              </div>
+            </div>
+            <div class="mon-row2">
+              <div>
+                <label for="mf-hr">Heart rate (bpm)</label>
+                <input type="number" id="mf-hr" placeholder="78">
+              </div>
+              <div>
+                <label for="mf-spo2">SpO₂ (%)</label>
+                <input type="number" id="mf-spo2" placeholder="97">
+              </div>
+            </div>
+            <div class="mon-row2">
+              <div>
+                <label for="mf-temp">Temperature (°C)</label>
+                <input type="number" step="0.1" id="mf-temp" placeholder="37.0">
+              </div>
+              <div>
+                <label for="mf-intake">Fluid intake (mL)</label>
+                <input type="number" id="mf-intake" placeholder="1800">
+              </div>
+            </div>
+            <label for="mf-output">Fluid output (mL)</label>
+            <input type="number" id="mf-output" placeholder="1500">
+            <button class="mon-btn mon-btn-primary" id="mon-add-btn">Create patient object</button>
+          </div>
+          <p class="mon-block-title" style="padding:14px 18px 0;">Roster (<span id="mon-roster-count">0</span>)</p>
+          <div class="mon-roster" id="mon-roster"></div>
+        </aside>
+
+        <div class="mon-content" id="mon-content">
+          <div class="mon-empty-state">
+            <h3>No patient selected</h3>
+            <p>Create a patient object on the left, or select one from the roster, to watch its vitals, fluid balance, and polymorphic alert logic resolve live.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="team">
+  <div class="wrap">
+    <p class="kicker">05 — Group 6</p>
+    <h2 class="sec-title">Built by</h2>
+    <div class="team-grid">
+      <div class="member"><div class="name">Aaditya Srivastava</div><div class="role">Project Manager</div></div>
+      <div class="member"><div class="name">Ritika Sharma</div><div class="role">Pseudocode Formulator</div></div>
+      <div class="member"><div class="name">Mukul Sharma</div><div class="role">Code Developer</div></div>
+      <div class="member"><div class="name">Aadhya Saini</div><div class="role">UI/UX Designer</div></div>
+      <div class="member"><div class="name">Adhya Sujay Barnwal</div><div class="role">UI/UX Designer</div></div>
+      <div class="member"><div class="name">Manas Rohilla</div><div class="role">Deployment &amp; Learning Tech Lead</div></div>
+      <div class="member"><div class="name">Mayank</div><div class="role">Hardware Integration Lead</div></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>OBJECT-ORIENTED PROGRAMMING — MID EVALUATION — GROUP 6</p>
+</footer>
+
+<div id="mon-toasts"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- OOP model, mirrored from the Java prototype ---------------- */
+
+  class ValidationError extends Error {}
+
+  class Patient {
+    constructor(name, age, hr, spo2, temp){
+      this.setName(name);
+      this.setAge(age);
+      this.setHeartRate(hr);
+      this.setSpo2(spo2);
+      this.setTemp(temp);
+      this.intake = 0;
+      this.output = 0;
+      this.log = [];
+      this.type = "Patient";
+      this.typeLabel = "Patient";
+    }
+    setName(v){ if(!v || !v.trim()) throw new ValidationError("Name cannot be empty"); this.name = v.trim(); }
+    setAge(v){ if(!(v>0) || v>130) throw new ValidationError("Age must be a positive, realistic number"); this.age = v; }
+    setHeartRate(v){ if(!(v>0)) throw new ValidationError("Heart rate cannot be negative"); this.heartRate = v; }
+    setSpo2(v){ if(!(v>=0 && v<=100)) throw new ValidationError("SpO2 must be between 0 and 100"); this.spo2 = v; }
+    setTemp(v){ if(!(v>25 && v<45)) throw new ValidationError("Temperature is outside a plausible range"); this.temp = v; }
+    recordFluid(intake, output){
+      if(intake < 0) throw new ValidationError("Fluid intake cannot be negative");
+      if(output < 0) throw new ValidationError("Fluid output cannot be negative");
+      this.intake += intake;
+      this.output += output;
+      this.log.push({ intake, output, t: new Date() });
+    }
+    fluidBalance(){ return this.intake - this.output; }
+    checkAlert(){ return this.heartRate > 130 || this.heartRate < 35 || this.spo2 < 88; }
+    alertTrace(){ return "spo2 < 88 or heartRate outside 35-130"; }
+  }
+
+  class ComaPatient extends Patient {
+    constructor(...args){ super(...args); this.type = "Coma"; this.typeLabel = "Coma patient"; }
+    checkAlert(){ return this.spo2 < 90 || this.heartRate > 120 || this.heartRate < 40; }
+    alertTrace(){ return "spo2 < 90 or heartRate outside 40-120"; }
+  }
+  class ParalysisPatient extends Patient {
+    constructor(...args){ super(...args); this.type = "Paralysis"; this.typeLabel = "Paralysis patient"; }
+    checkAlert(){ return this.spo2 < 92 || this.temp > 38.5; }
+    alertTrace(){ return "spo2 < 92 or temperature > 38.5°C"; }
+  }
+  class PostSurgeryPatient extends Patient {
+    constructor(...args){ super(...args); this.type = "PostSurgery"; this.typeLabel = "Post-surgery patient"; }
+    checkAlert(){ return this.temp > 38.0 || this.fluidBalance() < -500; }
+    alertTrace(){ return "temperature > 38.0°C or fluid balance < -500 mL"; }
+  }
+
+  function makePatient(type, name, age, hr, spo2, temp){
+    const Ctor = { Coma: ComaPatient, Paralysis: ParalysisPatient, PostSurgery: PostSurgeryPatient }[type] || Patient;
+    return new Ctor(name, age, hr, spo2, temp);
+  }
+
+  /* ---------------- App state ---------------- */
+
+  let patients = [];
+  let selectedId = null;
+  let idSeq = 1;
+
+  function loadState(){
+    try{
+      const raw = window.localStorage.getItem("pm_patients_v1");
+      if(!raw) return;
+      const parsed = JSON.parse(raw);
+      patients = parsed.map(p => {
+        const obj = makePatient(p.type, p.name, p.age, p.heartRate, p.spo2, p.temp);
+        obj.id = p.id;
+        obj.intake = p.intake; obj.output = p.output; obj.log = p.log || [];
+        return obj;
+      });
+      idSeq = (Math.max(0, ...patients.map(p=>p.id)) || 0) + 1;
+    }catch(e){ patients = []; }
+  }
+  function saveState(){
+    try{
+      const plain = patients.map(p => ({
+        id:p.id, type:p.type, name:p.name, age:p.age, heartRate:p.heartRate,
+        spo2:p.spo2, temp:p.temp, intake:p.intake, output:p.output, log:p.log
+      }));
+      window.localStorage.setItem("pm_patients_v1", JSON.stringify(plain));
+    }catch(e){ /* storage unavailable — app still works for this session */ }
+  }
+
+  function toast(msg){
+    const el = document.createElement("div");
+    el.className = "mon-toast";
+    el.textContent = msg;
+    document.getElementById("mon-toasts").appendChild(el);
+    setTimeout(()=>{ el.remove(); }, 3600);
+  }
+
+  /* ---------------- Rendering ---------------- */
+
+  const rosterEl = document.getElementById("mon-roster");
+  const rosterCount = document.getElementById("mon-roster-count");
+  const contentEl = document.getElementById("mon-content");
+
+  function esc(s){ const d=document.createElement("div"); d.textContent = String(s); return d.innerHTML; }
+
+  function renderRoster(){
+    rosterCount.textContent = patients.length;
+    if(patients.length === 0){
+      rosterEl.innerHTML = '<p class="mon-empty">No patients yet. Create one on the left.</p>';
+      return;
+    }
+    rosterEl.innerHTML = patients.map(p => {
+      const alert = p.checkAlert();
+      return `<div class="mon-card ${p.id===selectedId?'active':''}" data-id="${p.id}">
+        <div class="mc-top">
+          <span class="mc-name">${esc(p.name)}</span>
+          <span class="mon-chip ${alert?'mon-bad':'mon-ok'}"></span>
+        </div>
+        <div class="mc-type">${esc(p.typeLabel)} — age ${esc(p.age)}</div>
+      </div>`;
+    }).join("");
+    rosterEl.querySelectorAll(".mon-card").forEach(card=>{
+      card.addEventListener("click", ()=>{ selectedId = Number(card.dataset.id); renderRoster(); renderContent(); });
+    });
+  }
+
+  function renderContent(){
+    const p = patients.find(x=>x.id===selectedId);
+    if(!p){
+      contentEl.innerHTML = `<div class="mon-empty-state">
+        <h3>No patient selected</h3>
+        <p>Create a patient object on the left, or select one from the roster, to watch its vitals, fluid balance, and polymorphic alert logic resolve live.</p>
+      </div>`;
+      return;
+    }
+    const alert = p.checkAlert();
+    const balance = p.fluidBalance();
+    const logRows = p.log.slice().reverse().slice(0,6).map(l=>{
+      const t = new Date(l.t);
+      const time = isNaN(t) ? "" : t.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+      return `<div class="mon-log-item"><span class="ml-t">${esc(time)}</span><span>+${esc(l.intake)} mL intake, ${esc(l.output)} mL output logged</span></div>`;
+    }).join("") || '<p class="mon-empty">No fluid entries recorded yet.</p>';
+
+    contentEl.innerHTML = `
+      <div class="mon-dhead">
+        <div>
+          <h3>${esc(p.name)}</h3>
+          <div class="mon-meta">${esc(p.typeLabel)}.class — age ${esc(p.age)} — object #${p.id}</div>
+        </div>
+        <div class="mon-alert ${alert?'bad':'ok'}">
+          ${alert ? 'Prototype alert active' : 'Within monitored range'}
+        </div>
+      </div>
+
+      <div class="mon-vitals">
+        <div class="mon-vital"><div class="mv-label">Heart rate</div><div class="mv-val">${esc(p.heartRate)} <span>bpm</span></div></div>
+        <div class="mon-vital"><div class="mv-label">SpO₂</div><div class="mv-val">${esc(p.spo2)} <span>%</span></div></div>
+        <div class="mon-vital"><div class="mv-label">Temperature</div><div class="mv-val">${esc(p.temp)} <span>°C</span></div></div>
+        <div class="mon-vital"><div class="mv-label">Fluid balance</div><div class="mv-val ${balance<0?'mon-neg':'mon-pos'}">${balance>0?'+':''}${esc(balance)} <span>mL</span></div></div>
+      </div>
+
+      <div class="mon-two">
+        <div class="mon-panel">
+          <h4>Record fluid entry</h4>
+          <div class="mon-fluid-row">
+            <div><label for="min-intake">Intake (mL)</label><input type="number" id="min-intake" placeholder="200"></div>
+            <div><label for="min-output">Output (mL)</label><input type="number" id="min-output" placeholder="150"></div>
+          </div>
+          <button class="mon-btn mon-btn-primary" id="mon-record-btn" style="margin-top:12px;">Add to fluid log</button>
+          <div class="mon-balance">
+            <div class="mb-num ${balance<0?'mon-neg':'mon-pos'}">${balance>0?'+':''}${esc(balance)} mL</div>
+            <div class="mb-label">intake ${esc(p.intake)} mL − output ${esc(p.output)} mL</div>
+          </div>
+        </div>
+
+        <div class="mon-panel">
+          <h4>Polymorphic dispatch trace</h4>
+          <div class="mon-trace"><span class="mcm">// current.checkAlert() called on a Patient reference</span>
+<span class="mt">${esc(p.typeLabel)}</span><span class="mcm">.checkAlert() resolved at runtime</span>
+<span class="mcm">rule:</span> ${esc(p.alertTrace())}
+<span class="mcm">result:</span> <span class="${alert?'mk':''}">${alert}</span></div>
+        </div>
+      </div>
+
+      <div class="mon-panel mon-log">
+        <h4>Fluid log</h4>
+        ${logRows}
+      </div>
+
+      <div style="margin-top:16px; display:flex; justify-content:flex-end;">
+        <button class="mon-btn-ghost" id="mon-remove-btn">Discharge / remove patient</button>
+      </div>
+    `;
+
+    document.getElementById("mon-record-btn").addEventListener("click", ()=>{
+      const intake = Number(document.getElementById("min-intake").value || 0);
+      const output = Number(document.getElementById("min-output").value || 0);
+      try{
+        p.recordFluid(intake, output);
+        saveState();
+        renderRoster();
+        renderContent();
+      }catch(e){
+        if(e instanceof ValidationError) toast(e.message);
+        else toast("Could not record that fluid entry.");
+      }
+    });
+    document.getElementById("mon-remove-btn").addEventListener("click", ()=>{
+      patients = patients.filter(x=>x.id!==p.id);
+      selectedId = null;
+      saveState();
+      renderRoster();
+      renderContent();
+    });
+  }
+
+  /* ---------------- Add patient form ---------------- */
+
+  document.getElementById("mon-add-btn").addEventListener("click", ()=>{
+    const name = document.getElementById("mf-name").value;
+    const type = document.getElementById("mf-type").value;
+    const age = Number(document.getElementById("mf-age").value);
+    const hr = Number(document.getElementById("mf-hr").value);
+    const spo2 = Number(document.getElementById("mf-spo2").value);
+    const temp = Number(document.getElementById("mf-temp").value);
+    const intake = Number(document.getElementById("mf-intake").value || 0);
+    const output = Number(document.getElementById("mf-output").value || 0);
+    try{
+      const p = makePatient(type, name, age, hr, spo2, temp);
+      if(intake || output) p.recordFluid(intake, output);
+      p.id = idSeq++;
+      patients.push(p);
+      selectedId = p.id;
+      saveState();
+      renderRoster();
+      renderContent();
+      ["mf-name","mf-age","mf-hr","mf-spo2","mf-temp","mf-intake","mf-output"].forEach(id=>{ document.getElementById(id).value = ""; });
+    }catch(e){
+      if(e instanceof ValidationError) toast(e.message);
+      else toast("Could not create that patient object.");
+    }
+  });
+
+  /* ---------------- Clock ---------------- */
+
+  function monTick(){
+    const el = document.getElementById("mon-clock");
+    el.textContent = new Date().toLocaleString([], { weekday:'short', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  }
+  monTick();
+  setInterval(monTick, 1000);
+
+  /* ---------------- Init ---------------- */
+
+  loadState();
+  renderRoster();
+  renderContent();
+})();
+</script>
+</body>
+</html>
