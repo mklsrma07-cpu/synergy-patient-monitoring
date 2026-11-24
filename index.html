@@ -1,0 +1,1545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Synergy IoT: Patient &amp; Fluid Telemetry Ward Portal</title>
+<style>
+    :root {
+        --bg-deep: #070a13;
+        --bg-surface: #0f172a;
+        --bg-surface-elevated: #1e293b;
+        --bg-surface-card: #141e33;
+        --border-subtle: rgba(255, 255, 255, 0.08);
+        --border-hover: rgba(96, 165, 250, 0.4);
+        
+        --text-main: #f8fafc;
+        --text-secondary: #94a3b8;
+        --text-muted: #64748b;
+        
+        --primary: #3b82f6;
+        --primary-glow: rgba(59, 130, 246, 0.25);
+        
+        --color-hr: #f43f5e;
+        --color-spo2: #06b6d4;
+        --color-temp: #f59e0b;
+        --color-resp: #10b981;
+        --color-fluid: #818cf8;
+        
+        --status-normal: #10b981;
+        --status-warning: #f59e0b;
+        --status-critical: #ef4444;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { background-color: var(--bg-deep); color: var(--text-main); padding: 24px; min-height: 100vh; overflow-x: hidden; }
+    .container { max-width: 1440px; margin: 0 auto; }
+
+    /* --- Custom Scrollbar --- */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg-deep); }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+    /* --- Header Bar --- */
+    header {
+        background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.95) 100%);
+        border: 1px solid var(--border-subtle);
+        backdrop-filter: blur(12px);
+        border-radius: 18px;
+        padding: 22px 28px;
+        margin-bottom: 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    }
+    .header-titles h1 {
+        font-size: 1.65rem;
+        font-weight: 800;
+        background: linear-gradient(90deg, #60a5fa 0%, #c084fc 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        letter-spacing: -0.5px;
+    }
+    .header-titles p {
+        color: var(--text-secondary);
+        font-size: 0.88rem;
+        margin-top: 5px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .academic-tag {
+        background: rgba(99, 102, 241, 0.15);
+        color: #a5b4fc;
+        border: 1px solid rgba(99, 102, 241, 0.3);
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    
+    .header-controls {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 16px;
+        border-radius: 30px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        background: rgba(15, 23, 42, 0.8);
+        border: 1px solid var(--border-subtle);
+        box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+    }
+    .status-online { background: rgba(16, 185, 129, 0.12); border-color: rgba(16, 185, 129, 0.35); color: #34d399; }
+    .status-offline { background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.35); color: #fbbf24; }
+    .pulse-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: pulseGlow 1.8s infinite; }
+    @keyframes pulseGlow {
+        0%, 100% { opacity: 0.4; transform: scale(0.9); }
+        50% { opacity: 1; transform: scale(1.2); }
+    }
+
+    /* --- Ward Statistics Row --- */
+    .stats-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+    .stat-card {
+        background: var(--bg-surface-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: 14px;
+        padding: 18px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        transition: transform 0.2s, border-color 0.2s;
+    }
+    .stat-card:hover { transform: translateY(-2px); border-color: rgba(255,255,255,0.15); }
+    .stat-title { font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; font-weight: 600; }
+    .stat-val { font-size: 1.6rem; font-weight: 800; margin-top: 4px; color: #fff; letter-spacing: -0.5px; }
+    .stat-sub { font-size: 0.74rem; color: var(--text-secondary); margin-top: 3px; }
+    .stat-badge-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        background: rgba(255,255,255,0.03);
+        border: 1px solid var(--border-subtle);
+    }
+
+    /* --- Filter Tabs Bar --- */
+    .filter-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+    .tabs-group {
+        display: flex;
+        background: rgba(15, 23, 42, 0.7);
+        border: 1px solid var(--border-subtle);
+        border-radius: 12px;
+        padding: 4px;
+        gap: 4px;
+        overflow-x: auto;
+    }
+    .tab-btn {
+        background: transparent;
+        color: var(--text-secondary);
+        border: none;
+        padding: 8px 18px;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+    }
+    .tab-btn:hover { color: #fff; background: rgba(255,255,255,0.05); }
+    .tab-btn.active { background: #2563eb; color: #fff; box-shadow: 0 2px 10px rgba(37, 99, 235, 0.35); }
+    
+    .actions-group {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    .search-box {
+        position: relative;
+    }
+    .search-box input {
+        background: var(--bg-surface-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: 10px;
+        padding: 9px 14px 9px 36px;
+        color: #fff;
+        font-size: 0.88rem;
+        width: 240px;
+        transition: border-color 0.2s, width 0.2s;
+    }
+    .search-box input:focus {
+        outline: none;
+        border-color: #3b82f6;
+        width: 280px;
+        box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
+    }
+    .search-icon {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-muted);
+        font-size: 0.9rem;
+    }
+
+    /* --- Buttons --- */
+    button {
+        background: #2563eb;
+        color: white;
+        border: none;
+        padding: 9px 16px;
+        border-radius: 10px;
+        font-size: 0.88rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.2s;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    }
+    button:hover { background: #1d4ed8; transform: translateY(-1px); }
+    button.btn-success { background: #059669; }
+    button.btn-success:hover { background: #047857; }
+    button.btn-warn { background: #d97706; }
+    button.btn-warn:hover { background: #b45309; }
+    button.btn-secondary { background: var(--bg-surface-elevated); color: var(--text-main); border: 1px solid var(--border-subtle); }
+    button.btn-secondary:hover { background: #334155; }
+    button.btn-danger { background: #dc2626; }
+    button.btn-danger:hover { background: #b91c1c; }
+
+    /* --- Empty State Screen --- */
+    .empty-state {
+        background: linear-gradient(180deg, rgba(15, 23, 42, 0.6) 0%, rgba(30, 41, 59, 0.3) 100%);
+        border: 2px dashed rgba(255, 255, 255, 0.12);
+        border-radius: 20px;
+        padding: 70px 24px;
+        text-align: center;
+        margin: 20px 0;
+        animation: fadeIn 0.4s ease-out;
+    }
+    .empty-icon {
+        width: 80px;
+        height: 80px;
+        background: rgba(59, 130, 246, 0.1);
+        border: 1px solid rgba(59, 130, 246, 0.25);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.4rem;
+        margin: 0 auto 20px;
+        box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
+    }
+    .empty-state h2 { font-size: 1.5rem; color: #fff; margin-bottom: 10px; font-weight: 700; }
+    .empty-state p { color: var(--text-secondary); max-width: 540px; margin: 0 auto 28px; line-height: 1.6; font-size: 0.95rem; }
+    .btn-large { padding: 13px 26px; font-size: 1rem; border-radius: 12px; }
+
+    /* --- Patient Bed Cards Grid --- */
+    .beds-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(430px, 1fr));
+        gap: 22px;
+    }
+    .bed-card {
+        background: var(--bg-surface-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: 16px;
+        padding: 22px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+        position: relative;
+        overflow: hidden;
+        transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
+        animation: cardEntry 0.35s ease-out;
+    }
+    .bed-card:hover {
+        border-color: var(--border-hover);
+        transform: translateY(-3px);
+        box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+    }
+    @keyframes cardEntry {
+        from { opacity: 0; transform: translateY(12px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Card Top Bar */
+    .card-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 14px;
+    }
+    .bed-id-badge {
+        font-size: 0.72rem;
+        font-weight: 800;
+        color: #60a5fa;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        background: rgba(37, 99, 235, 0.12);
+        padding: 3px 8px;
+        border-radius: 6px;
+        display: inline-block;
+        margin-bottom: 4px;
+    }
+    .patient-title { font-size: 1.3rem; font-weight: 700; color: #fff; line-height: 1.2; }
+    .patient-subtitle { font-size: 0.8rem; color: var(--text-secondary); margin-top: 3px; }
+
+    .risk-tag {
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 5px 12px;
+        border-radius: 20px;
+        text-align: right;
+        max-width: 170px;
+        line-height: 1.3;
+    }
+    .risk-stable { background: rgba(16, 185, 129, 0.12); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .risk-warning { background: rgba(245, 158, 11, 0.12); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .risk-critical { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); animation: criticalPulse 1.5s infinite; }
+    @keyframes criticalPulse {
+        0%, 100% { box-shadow: 0 0 0 rgba(239, 68, 68, 0); }
+        50% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.4); }
+    }
+
+    /* Live ECG Rhythm Waveform */
+    .ecg-box {
+        position: relative;
+        margin-bottom: 14px;
+        background: #090d16;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        overflow: hidden;
+    }
+    .ecg-canvas {
+        width: 100%;
+        height: 42px;
+        display: block;
+    }
+    .ecg-label {
+        position: absolute;
+        top: 4px;
+        left: 8px;
+        font-size: 0.65rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        pointer-events: none;
+    }
+
+    /* 4-Vital Metric Boxes */
+    .vitals-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+        margin-bottom: 14px;
+    }
+    .vital-tile {
+        background: #090d16;
+        border: 1px solid var(--border-subtle);
+        border-radius: 10px;
+        padding: 10px 6px;
+        text-align: center;
+        transition: border-color 0.2s;
+    }
+    .vital-tile:hover { border-color: rgba(255,255,255,0.2); }
+    .v-label { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 4px; }
+    .v-value { font-size: 1.35rem; font-weight: 800; margin-top: 4px; letter-spacing: -0.5px; }
+    .v-unit { font-size: 0.66rem; color: var(--text-muted); margin-top: 2px; }
+
+    .pulse-heart { display: inline-block; animation: heartBeat 1.2s infinite; }
+    @keyframes heartBeat {
+        0%, 100% { transform: scale(1); }
+        15% { transform: scale(1.3); }
+        30% { transform: scale(1); }
+        45% { transform: scale(1.15); }
+    }
+
+    /* Fluid Balance Section */
+    .fluid-panel {
+        background: #090d16;
+        border: 1px solid var(--border-subtle);
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin-bottom: 12px;
+    }
+    .fluid-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.78rem;
+        margin-bottom: 8px;
+    }
+    .fluid-top span { color: var(--text-secondary); }
+    .fluid-top strong { color: #60a5fa; font-weight: 700; }
+    
+    .fluid-dual-bar {
+        height: 9px;
+        background: #1e293b;
+        border-radius: 6px;
+        overflow: hidden;
+        display: flex;
+        margin-bottom: 8px;
+    }
+    .fluid-segment-in { background: linear-gradient(90deg, #3b82f6, #60a5fa); transition: width 0.4s ease; }
+    .fluid-segment-out { background: linear-gradient(90deg, #10b981, #34d399); transition: width 0.4s ease; }
+
+    .fluid-bottom-numbers {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.76rem;
+        color: var(--text-secondary);
+    }
+    .fluid-bottom-numbers strong { color: #fff; }
+
+    /* Posture & Protocol Info */
+    .meta-line {
+        font-size: 0.78rem;
+        color: var(--text-secondary);
+        margin-bottom: 6px;
+        line-height: 1.45;
+    }
+    .meta-line strong { color: #e2e8f0; }
+
+    /* Action Buttons Footer */
+    .card-actions {
+        display: flex;
+        gap: 6px;
+        margin-top: 14px;
+        padding-top: 12px;
+        border-top: 1px solid var(--border-subtle);
+        flex-wrap: wrap;
+    }
+    .card-actions button {
+        flex: 1;
+        padding: 7px 10px;
+        font-size: 0.76rem;
+        justify-content: center;
+        min-width: 85px;
+    }
+
+    /* --- Table Directory View --- */
+    .table-wrapper {
+        background: var(--bg-surface-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: 14px;
+        overflow-x: auto;
+        padding: 8px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.88rem;
+    }
+    th {
+        background: #090d16;
+        color: var(--text-secondary);
+        padding: 14px 16px;
+        text-align: left;
+        font-weight: 700;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+    td {
+        padding: 14px 16px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        color: #e2e8f0;
+    }
+    tr:hover td { background: rgba(255, 255, 255, 0.02); }
+
+    /* --- Modals Overlay --- */
+    .modal-backdrop {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(3, 7, 18, 0.8);
+        backdrop-filter: blur(6px);
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        animation: fadeIn 0.2s ease-out;
+    }
+    .modal-window {
+        background: var(--bg-surface-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: 18px;
+        padding: 26px 30px;
+        width: 90%;
+        max-width: 520px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+        animation: scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .modal-window h2 { color: #60a5fa; margin-bottom: 18px; font-size: 1.35rem; font-weight: 700; }
+    .form-row { margin-bottom: 14px; }
+    .form-row label { display: block; font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 6px; font-weight: 600; }
+    .form-row input, .form-row select {
+        width: 100%;
+        padding: 11px 14px;
+        background: #090d16;
+        border: 1px solid var(--border-subtle);
+        border-radius: 8px;
+        color: #fff;
+        font-size: 0.92rem;
+        transition: border-color 0.2s;
+    }
+    .form-row input:focus, .form-row select:focus {
+        outline: none;
+        border-color: #3b82f6;
+    }
+    .modal-btns {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 24px;
+    }
+
+    .report-box {
+        max-height: 400px;
+        overflow-y: auto;
+        background: #090d16;
+        padding: 16px;
+        border-radius: 10px;
+        border: 1px solid var(--border-subtle);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.84rem;
+        white-space: pre-wrap;
+        line-height: 1.6;
+        color: #cbd5e1;
+    }
+
+    /* --- Toast Notifications --- */
+    #toastContainer {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        z-index: 2000;
+        pointer-events: none;
+    }
+    .toast {
+        background: #1e293b;
+        color: #fff;
+        padding: 12px 20px;
+        border-radius: 10px;
+        font-size: 0.88rem;
+        font-weight: 600;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        border-left: 4px solid #3b82f6;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        animation: toastIn 0.3s ease-out, toastOut 0.3s ease-in 2.7s forwards;
+    }
+    .toast-success { border-color: #10b981; }
+    .toast-alert { border-color: #ef4444; }
+    @keyframes toastIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes toastOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes scaleUp { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+    @media (max-width: 768px) {
+        .beds-grid { grid-template-columns: 1fr; }
+        .vitals-grid { grid-template-columns: repeat(2, 1fr); }
+        .search-box input { width: 100%; }
+        .search-box input:focus { width: 100%; }
+    }
+</style>
+</head>
+
+<body>
+<div class="container">
+    <!-- Top Header -->
+    <header>
+        <div class="header-titles">
+            <h1>🫀 SYNERGY IoT PATIENT &amp; FLUID TELEMETRY</h1>
+            <p>
+                <span class="academic-tag">Project Synergy · Final Evaluation</span>
+                <span>Object-Oriented Programming (Java) + ET 201</span>
+            </p>
+        </div>
+        <div class="header-controls">
+            <div id="connPill" class="status-pill status-online">
+                <div class="pulse-dot"></div>
+                <span id="connLabel">Global Cloud Active (Multi-Device)</span>
+            </div>
+            <div class="status-pill">
+                <span>🕒 </span>
+                <span id="liveClock">--:--:--</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Ward Summary Metric Cards -->
+    <div class="stats-row">
+        <div class="stat-card">
+            <div>
+                <div class="stat-title">Admitted Beds</div>
+                <div class="stat-val" id="statBedsCount">0 Beds</div>
+                <div class="stat-sub" id="statBedsSub">Ready to admit</div>
+            </div>
+            <div class="stat-badge-icon">🛏️</div>
+        </div>
+        <div class="stat-card">
+            <div>
+                <div class="stat-title">Active Alerts</div>
+                <div class="stat-val" id="statAlertsCount" style="color:#10b981">0 Alerts</div>
+                <div class="stat-sub">Physiological safety thresholds</div>
+            </div>
+            <div class="stat-badge-icon">⚠️</div>
+        </div>
+        <div class="stat-card">
+            <div>
+                <div class="stat-title">Ward Fluid Balance</div>
+                <div class="stat-val" id="statFluidBalance" style="color:#60a5fa">0 ml</div>
+                <div class="stat-sub">IV Inflow vs Urine Outflow</div>
+            </div>
+            <div class="stat-badge-icon">💧</div>
+        </div>
+        <div class="stat-card">
+            <div>
+                <div class="stat-title">Hardware Telemetry</div>
+                <div class="stat-val" id="statSensorsStatus" style="color:#34d399">Standby</div>
+                <div class="stat-sub">MAX30102, DS18B20, HX711, MPU6050</div>
+            </div>
+            <div class="stat-badge-icon">📡</div>
+        </div>
+    </div>
+
+    <!-- Filter & Action Controls Bar -->
+    <div class="filter-bar">
+        <div class="tabs-group">
+            <button class="tab-btn active" id="tabGrid" onclick="changeView('grid')">🛏️ Ward Bed Monitors</button>
+            <button class="tab-btn" id="tabTable" onclick="changeView('table')">📋 Patient Table</button>
+            <button class="tab-btn" id="tabAlerts" onclick="changeView('alerts')">🔔 Active Alerts (<span id="tabAlertsCount">0</span>)</button>
+        </div>
+
+        <div class="actions-group">
+            <div class="search-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="wardSearch" placeholder="Search by name, ID or type..." oninput="handleFilterSearch()">
+            </div>
+            <button class="btn-success" onclick="openModal('addPatientModal')">➕ Admit Patient</button>
+            <button id="iotToggleBtn" class="btn-warn" onclick="toggleIotStreaming()">⚡ IoT Stream: Active (3s)</button>
+            <button class="btn-secondary" onclick="manualCloudSync()" title="Synchronize with global cloud ward">🔄 Sync Cloud</button>
+            <button class="btn-secondary" onclick="exportWardCsv()">💾 CSV</button>
+            <button class="btn-danger" style="padding: 8px 12px; font-size: 0.82rem;" onclick="clearAllPatients()" title="Reset all beds in ward">🧹 Clear Ward</button>
+        </div>
+    </div>
+
+    <!-- MAIN VIEW 1: Bed Cards Grid -->
+    <div id="viewGrid" class="beds-grid">
+        <!-- Rendered Bed Cards or Empty State -->
+    </div>
+
+    <!-- MAIN VIEW 2: Patient Table Directory -->
+    <div id="viewTable" class="table-wrapper" style="display:none;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Bed / ID</th>
+                    <th>Patient Name</th>
+                    <th>Age</th>
+                    <th>Condition</th>
+                    <th>Heart Rate</th>
+                    <th>SpO2</th>
+                    <th>Temp</th>
+                    <th>Resp Rate</th>
+                    <th>IV Intake</th>
+                    <th>Catheter Out</th>
+                    <th>Net Balance</th>
+                    <th>Risk Assessment</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="wardTableBody">
+                <!-- Rendered dynamically -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- MAIN VIEW 3: Active Alerts Stream -->
+    <div id="viewAlerts" class="table-wrapper" style="display:none; padding:18px;">
+        <div id="alertsStreamContainer">
+            <!-- Rendered dynamically -->
+        </div>
+    </div>
+</div>
+
+<!-- ================= MODALS ================= -->
+
+<!-- 1. Admit New Patient Modal -->
+<div id="addPatientModal" class="modal-backdrop">
+    <div class="modal-window">
+        <h2>Admit New Patient to Ward</h2>
+        <div class="form-row">
+            <label>Patient ID (e.g. P101, P102)</label>
+            <input id="inputPId" placeholder="e.g. P101">
+        </div>
+        <div class="form-row">
+            <label>Patient Full Name</label>
+            <input id="inputPName" placeholder="Enter patient's name">
+        </div>
+        <div class="form-row">
+            <label>Age (1 - 120)</label>
+            <input id="inputPAge" type="number" min="1" max="120" placeholder="e.g. 48">
+        </div>
+        <div class="form-row">
+            <label>Patient Condition Category</label>
+            <select id="inputPType">
+                <option value="Coma">Coma Patient (Bed-Bound · Glasgow Coma Scale Monitored)</option>
+                <option value="Paralysis">Paralysis Patient (Limited Mobility · Bed-sore Ulcer Protocol)</option>
+                <option value="ICU">ICU Critical Patient (Multi-parameter Surveillance)</option>
+            </select>
+        </div>
+        <div class="form-row">
+            <label>Baseline Vitals (Optional)</label>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                <input id="inputPHr" type="number" placeholder="Heart Rate (bpm)" value="75">
+                <input id="inputPSpo2" type="number" placeholder="SpO2 (%)" value="98">
+            </div>
+        </div>
+        <div class="modal-btns">
+            <button class="btn-secondary" onclick="closeModal('addPatientModal')">Cancel</button>
+            <button class="btn-success" onclick="executePatientAdmission()">Admit Patient</button>
+        </div>
+    </div>
+</div>
+
+<!-- 2. Manual Vitals Telemetry Modal -->
+<div id="vitalsModal" class="modal-backdrop">
+    <div class="modal-window">
+        <h2>Manual Vitals Entry (IoT Gateway Simulator)</h2>
+        <input type="hidden" id="vTargetId">
+        <div class="form-row">
+            <label>Patient</label>
+            <input id="vPatientLabel" disabled style="opacity:0.75">
+        </div>
+        <div class="form-row">
+            <label>Heart Rate (MAX30102 - 20 to 260 bpm)</label>
+            <input id="vInputHr" type="number" step="0.5">
+        </div>
+        <div class="form-row">
+            <label>SpO2 Oxygen Saturation (40 to 100 %)</label>
+            <input id="vInputSpo2" type="number" step="0.5">
+        </div>
+        <div class="form-row">
+            <label>Body Temperature (DS18B20 - 25 to 45 °C)</label>
+            <input id="vInputTemp" type="number" step="0.1">
+        </div>
+        <div class="form-row">
+            <label>Respiratory Rate (4 to 80 breaths/min)</label>
+            <input id="vInputRr" type="number" step="0.5">
+        </div>
+        <div class="modal-btns">
+            <button class="btn-secondary" onclick="closeModal('vitalsModal')">Cancel</button>
+            <button class="btn-success" onclick="executeVitalsUpdate()">Save Telemetry</button>
+        </div>
+    </div>
+</div>
+
+<!-- 3. Record Fluid Intake & Output Modal -->
+<div id="fluidModal" class="modal-backdrop">
+    <div class="modal-window">
+        <h2>Record Fluid Intake &amp; Output</h2>
+        <input type="hidden" id="fTargetId">
+        <div class="form-row">
+            <label>Patient</label>
+            <input id="fPatientLabel" disabled style="opacity:0.75">
+        </div>
+        <div class="form-row">
+            <label>IV Infusion / Oral Fluid Added (ml)</label>
+            <input id="fInputIntake" type="number" value="250" min="0">
+        </div>
+        <div class="form-row">
+            <label>Catheter Urine / Drain Output Added (ml)</label>
+            <input id="fInputOutput" type="number" value="180" min="0">
+        </div>
+        <div class="modal-btns">
+            <button class="btn-secondary" onclick="closeModal('fluidModal')">Cancel</button>
+            <button class="btn-success" onclick="executeFluidRecord()">Save Fluid Data</button>
+        </div>
+    </div>
+</div>
+
+<!-- 4. Clinical Report Modal -->
+<div id="reportModal" class="modal-backdrop">
+    <div class="modal-window" style="max-width: 680px;">
+        <h2>Comprehensive Clinical &amp; IoT Report</h2>
+        <div class="report-box" id="reportDetailsText">Generating report...</div>
+        <div class="modal-btns">
+            <button class="btn-secondary" onclick="closeModal('reportModal')">Close</button>
+            <button onclick="downloadClinicalReport()">📥 Download .TXT</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toastContainer"></div>
+
+<!-- ================= JAVASCRIPT ENGINE ================= -->
+<script>
+// Zero hardcoded names - completely user-admitted!
+const STORAGE_KEY = "synergy_final_patients_v1";
+let wardPatients = [];
+let activeSearchQuery = "";
+let currentActiveView = "grid";
+let currentReportObject = null;
+let isIotStreaming = true;
+let isJavaBackendOnline = false;
+
+const BACKEND_URL = window.location.origin.startsWith('http') ? window.location.origin : 'http://127.0.0.1:8080';
+
+// Initialize from localStorage
+try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+        wardPatients = JSON.parse(saved);
+    }
+} catch (e) {
+    wardPatients = [];
+}
+
+const CLOUD_SYNC_URL = "https://api.restful-api.dev/objects/ff808181a09d98f701a20db0572e360c";
+let isSyncingToCloud = false;
+
+function persistPatients(syncCloud = true) {
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(wardPatients));
+    } catch (e) {}
+    if (syncCloud) {
+        pushToCloudSync();
+    }
+}
+
+async function pushToCloudSync() {
+    if (isSyncingToCloud) return;
+    try {
+        isSyncingToCloud = true;
+        await fetch(CLOUD_SYNC_URL, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: 'SynergyWard',
+                data: {
+                    patients: wardPatients,
+                    updatedAt: Date.now()
+                }
+            })
+        });
+        updateServerStatus(true, "Global Cloud Synced (Multi-Device)");
+    } catch (e) {
+        console.warn("Cloud sync warning:", e);
+    } finally {
+        isSyncingToCloud = false;
+    }
+}
+
+async function fetchCloudData() {
+    try {
+        const res = await fetch(CLOUD_SYNC_URL, { cache: 'no-store' });
+        if (res.ok) {
+            const result = await res.json();
+            if (result && result.data && Array.isArray(result.data.patients)) {
+                const cloudPatients = result.data.patients;
+                if (JSON.stringify(cloudPatients) !== JSON.stringify(wardPatients)) {
+                    wardPatients = cloudPatients;
+                    persistPatients(false);
+                    renderWardInterface();
+                }
+                updateServerStatus(true, "Global Cloud Active (Multi-Device)");
+                return true;
+            }
+        }
+    } catch (e) {
+        updateServerStatus(false, "Standalone Web Mode (Local Storage)");
+    }
+    return false;
+}
+
+async function manualCloudSync() {
+    showToast("Syncing with Global Cloud Ward...", "info");
+    const ok = await fetchCloudData();
+    if (ok) {
+        showToast("Ward synchronized across all devices!", "success");
+    } else {
+        showToast("Cloud sync offline - using local cached data", "alert");
+    }
+}
+
+function clearAllPatients() {
+    if (wardPatients.length === 0) {
+        showToast("Ward is already empty.", "info");
+        return;
+    }
+    if (confirm("Are you sure you want to clear all admitted patients from the ward? This will clear across all devices.")) {
+        wardPatients = [];
+        persistPatients(true);
+        renderWardInterface();
+        showToast("All beds cleared successfully.", "info");
+    }
+}
+
+// Live Clock
+setInterval(() => {
+    const d = new Date();
+    document.getElementById('liveClock').innerText = d.toTimeString().split(' ')[0];
+}, 1000);
+
+// Toast Notification System
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type === 'success' ? 'toast-success' : type === 'alert' ? 'toast-alert' : ''}`;
+    toast.innerHTML = `<span>${type === 'success' ? '✓' : type === 'alert' ? '⚠' : 'ℹ'}</span> <span>${escapeHtml(message)}</span>`;
+    container.appendChild(toast);
+    setTimeout(() => { toast.remove(); }, 3000);
+}
+
+// View Navigation
+function changeView(view) {
+    currentActiveView = view;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('viewGrid').style.display = view === 'grid' ? 'grid' : 'none';
+    document.getElementById('viewTable').style.display = view === 'table' ? 'block' : 'none';
+    document.getElementById('viewAlerts').style.display = view === 'alerts' ? 'block' : 'none';
+
+    if (view === 'grid') document.getElementById('tabGrid').classList.add('active');
+    if (view === 'table') document.getElementById('tabTable').classList.add('active');
+    if (view === 'alerts') document.getElementById('tabAlerts').classList.add('active');
+
+    renderWardInterface();
+}
+
+// Backend Connectivity Check & Cloud Sync Loop
+async function syncTelemetryLoop() {
+    let javaOk = false;
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 1200);
+        const res = await fetch(`${BACKEND_URL}/api/patients`, { cache: 'no-store', signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data) && data.length > 0) {
+                data.forEach(bp => {
+                    let existing = wardPatients.find(p => p.id.toUpperCase() === bp.id.toUpperCase());
+                    if (!existing) {
+                        existing = {
+                            id: bp.id,
+                            name: bp.name,
+                            age: bp.age,
+                            condition: bp.condition,
+                            risk: bp.risk || evaluateClinicalRisk(bp),
+                            heartRate: bp.heartRate || 75.0,
+                            spo2: bp.spo2 || 98.0,
+                            temp: bp.temp || 36.8,
+                            respRate: bp.respRate || 16.0,
+                            intake: bp.intake || 0.0,
+                            output: bp.output || 0.0,
+                            balance: (bp.intake || 0) - (bp.output || 0),
+                            mobility: bp.mobility || (bp.condition.includes("Coma") ? "Bed-bound (Tilt Monitored)" : "Limited Mobility"),
+                            protocol: bp.condition.includes("Coma") ? "Q2H Turn schedule & GCS check" : "Continuous clinical surveillance"
+                        };
+                        wardPatients.push(existing);
+                    } else {
+                        existing.heartRate = bp.heartRate || existing.heartRate;
+                        existing.spo2 = bp.spo2 || existing.spo2;
+                        existing.temp = bp.temp || existing.temp;
+                        existing.respRate = bp.respRate || existing.respRate;
+                        existing.intake = bp.intake !== undefined ? bp.intake : existing.intake;
+                        existing.output = bp.output !== undefined ? bp.output : existing.output;
+                        existing.balance = existing.intake - existing.output;
+                        existing.risk = evaluateClinicalRisk(existing);
+                    }
+                });
+                persistPatients(true);
+            }
+            updateServerStatus(true, "Java Backend Live (Port 8080)");
+            javaOk = true;
+        }
+    } catch (e) {
+        javaOk = false;
+    }
+
+    if (!javaOk) {
+        await fetchCloudData();
+        if (isIotStreaming && wardPatients.length > 0) {
+            simulateTelemetryVariations();
+        }
+    }
+    renderWardInterface();
+}
+
+function updateServerStatus(online, customLabel) {
+    const pill = document.getElementById('connPill');
+    const label = document.getElementById('connLabel');
+    if (!pill || !label) return;
+    if (online) {
+        pill.className = "status-pill status-online";
+        label.innerText = customLabel || "Global Cloud Active (Multi-Device)";
+    } else {
+        pill.className = "status-pill status-offline";
+        label.innerText = customLabel || "Standalone Web Mode (Local Storage)";
+    }
+}
+
+function evaluateClinicalRisk(p) {
+    if (p.spo2 < 90) return "CRITICAL: Severe Hypoxia (SpO2 < 90%)";
+    if (p.spo2 < 95) return "MILD HYPOXIA ALERT: SpO2 < 95%";
+    if (p.heartRate < 50 || p.heartRate > 120) return "WARNING: Arrhythmia Detected";
+    if (p.temp > 38.0) return "WARNING: Pyrexia / Elevated Temp";
+    if (p.balance > 1500) return "WARNING: Fluid Overload Risk";
+    if (p.balance < -1000) return "WARNING: Dehydration / Fluid Deficit";
+    return "Stable Baseline";
+}
+
+function simulateTelemetryVariations() {
+    wardPatients.forEach(p => {
+        p.heartRate = Math.round((p.heartRate + (Math.random() * 2 - 1)) * 10) / 10;
+        p.spo2 = Math.min(100, Math.max(88, Math.round((p.spo2 + (Math.random() * 0.6 - 0.3)) * 10) / 10));
+        p.temp = Math.round((p.temp + (Math.random() * 0.1 - 0.05)) * 10) / 10;
+        p.respRate = Math.round((p.respRate + (Math.random() * 0.4 - 0.2)) * 10) / 10;
+        p.intake += 1.5;
+        p.output += 1.0;
+        p.balance = Math.round((p.intake - p.output) * 10) / 10;
+        p.risk = evaluateClinicalRisk(p);
+    });
+    persistPatients();
+}
+
+function handleFilterSearch() {
+    activeSearchQuery = document.getElementById('wardSearch').value.trim().toLowerCase();
+    renderWardInterface();
+}
+
+// Render Complete Interface
+function renderWardInterface() {
+    const filtered = wardPatients.filter(p => {
+        if (!activeSearchQuery) return true;
+        return p.id.toLowerCase().includes(activeSearchQuery) ||
+               p.name.toLowerCase().includes(activeSearchQuery) ||
+               p.condition.toLowerCase().includes(activeSearchQuery);
+    });
+
+    // Overview Stats
+    document.getElementById('statBedsCount').innerText = wardPatients.length + (wardPatients.length === 1 ? " Bed" : " Beds");
+    document.getElementById('statBedsSub').innerText = wardPatients.length > 0 ? "Under active surveillance" : "Ready to admit";
+    
+    let totalAlerts = 0;
+    let netWardFluid = 0;
+    wardPatients.forEach(p => {
+        if (p.risk && (p.risk.includes('ALERT') || p.risk.includes('WARNING') || p.risk.includes('CRITICAL') || p.risk.includes('MILD'))) {
+            totalAlerts++;
+        }
+        netWardFluid += (p.intake - p.output);
+    });
+
+    document.getElementById('statAlertsCount').innerText = totalAlerts + (totalAlerts === 1 ? " Alert" : " Alerts");
+    document.getElementById('statAlertsCount').style.color = totalAlerts > 0 ? "#f87171" : "#10b981";
+    document.getElementById('tabAlertsCount').innerText = totalAlerts;
+    document.getElementById('statFluidBalance').innerText = (netWardFluid >= 0 ? "+" : "") + Math.round(netWardFluid) + " ml";
+    document.getElementById('statSensorsStatus').innerText = wardPatients.length > 0 ? `${wardPatients.length * 4} Streams Active` : "Standby";
+
+    // 1. Grid View Render
+    const gridContainer = document.getElementById('viewGrid');
+    if (wardPatients.length === 0) {
+        gridContainer.innerHTML = `
+        <div class="empty-state" style="grid-column: 1 / -1;">
+            <div class="empty-icon">🏥</div>
+            <h2>IoT Ward Ready for Patient Admission</h2>
+            <p>No patients are currently admitted. Register your first patient to assign a bed monitor and start continuous real-time IoT vital signs telemetry, animated ECG waveforms, and fluid tracking.</p>
+            <button class="btn-large btn-success" onclick="openModal('addPatientModal')">➕ Admit / Register First Patient</button>
+        </div>
+        `;
+    } else if (filtered.length === 0) {
+        gridContainer.innerHTML = `
+        <div class="empty-state" style="grid-column: 1 / -1;">
+            <div class="empty-icon">🔍</div>
+            <h2>No Patients Match "${escapeHtml(activeSearchQuery)}"</h2>
+            <p>Try searching for a different patient name, ID, or condition.</p>
+        </div>
+        `;
+    } else {
+        gridContainer.innerHTML = filtered.map((p, idx) => {
+            const bedLabel = "BED " + String(idx + 1).padStart(2, '0');
+            const hrStyle = (p.heartRate >= 60 && p.heartRate <= 100) ? "color:var(--color-hr);" : "color:#ef4444;font-weight:900;";
+            const spo2Style = (p.spo2 >= 95) ? "color:var(--color-spo2);" : "color:#ef4444;font-weight:900;";
+            const tempStyle = (p.temp >= 36.0 && p.temp <= 37.8) ? "color:var(--color-temp);" : "color:#f59e0b;";
+
+            let riskBadgeClass = "risk-stable";
+            if (p.risk && p.risk.includes('CRITICAL')) riskBadgeClass = "risk-critical";
+            else if (p.risk && (p.risk.includes('WARNING') || p.risk.includes('ALERT') || p.risk.includes('MILD'))) riskBadgeClass = "risk-warning";
+
+            const inPct = Math.min(100, (p.intake / (p.intake + p.output || 1)) * 100);
+            const outPct = 100 - inPct;
+
+            return `
+            <div class="bed-card" id="card-${p.id}">
+                <div class="card-top">
+                    <div>
+                        <div class="bed-id-badge">${bedLabel} &bull; ${escapeHtml(p.id)}</div>
+                        <div class="patient-title">${escapeHtml(p.name)}</div>
+                        <div class="patient-subtitle">Age: ${p.age} &bull; <strong>${escapeHtml(p.condition)}</strong> Patient</div>
+                    </div>
+                    <div class="risk-tag ${riskBadgeClass}">${escapeHtml(p.risk)}</div>
+                </div>
+
+                <!-- Animated ECG Waveform -->
+                <div class="ecg-box">
+                    <span class="ecg-label">Lead II Rhythm (Live)</span>
+                    <canvas class="ecg-canvas" id="canvas-${p.id}" width="380" height="42"></canvas>
+                </div>
+
+                <!-- 4 Real-Time Vitals -->
+                <div class="vitals-grid">
+                    <div class="vital-tile">
+                        <div class="v-label"><span class="pulse-heart">💓</span> HR</div>
+                        <div class="v-value" style="${hrStyle}">${p.heartRate.toFixed(1)}</div>
+                        <div class="v-unit">bpm</div>
+                    </div>
+                    <div class="vital-tile">
+                        <div class="v-label">🫁 SpO2</div>
+                        <div class="v-value" style="${spo2Style}">${p.spo2.toFixed(1)}</div>
+                        <div class="v-unit">% pulse</div>
+                    </div>
+                    <div class="vital-tile">
+                        <div class="v-label">🌡️ Temp</div>
+                        <div class="v-value" style="${tempStyle}">${p.temp.toFixed(1)}</div>
+                        <div class="v-unit">&deg;C probe</div>
+                    </div>
+                    <div class="vital-tile">
+                        <div class="v-label">💨 Resp</div>
+                        <div class="v-value" style="color:var(--color-resp);">${p.respRate.toFixed(1)}</div>
+                        <div class="v-unit">/min</div>
+                    </div>
+                </div>
+
+                <!-- Fluid Balance Progress -->
+                <div class="fluid-panel">
+                    <div class="fluid-top">
+                        <span>IV Infusion vs Urine Catheter</span>
+                        <span>Net: <strong style="color:#60a5fa">${p.balance >= 0 ? '+' : ''}${Math.round(p.balance)} ml</strong></span>
+                    </div>
+                    <div class="fluid-dual-bar">
+                        <div class="fluid-segment-in" style="width:${inPct}%" title="Intake: ${p.intake} ml"></div>
+                        <div class="fluid-segment-out" style="width:${outPct}%" title="Output: ${p.output} ml"></div>
+                    </div>
+                    <div class="fluid-bottom-numbers">
+                        <span>Intake: <strong>${Math.round(p.intake)} ml</strong></span>
+                        <span>Output: <strong>${Math.round(p.output)} ml</strong></span>
+                    </div>
+                </div>
+
+                <!-- Mobility & Protocol -->
+                <div class="meta-line"><strong>Mobility:</strong> ${escapeHtml(p.mobility)}</div>
+                <div class="meta-line"><strong>Protocol:</strong> ${escapeHtml(p.protocol)}</div>
+
+                <!-- Quick Action Buttons -->
+                <div class="card-actions">
+                    <button class="btn-secondary" onclick="openVitalsModal('${p.id}')">💓 Vitals</button>
+                    <button class="btn-secondary" onclick="openFluidModal('${p.id}')">💧 Fluid</button>
+                    <button class="btn-secondary" onclick="displayClinicalReport('${p.id}')">📄 Report</button>
+                    <button class="btn-danger" onclick="dischargeBed('${p.id}')" title="Discharge patient">✕ Discharge</button>
+                </div>
+            </div>
+            `;
+        }).join('');
+
+        // Trigger ECG waves
+        filtered.forEach(p => animateEcgRhythm(`canvas-${p.id}`, p.heartRate));
+    }
+
+    // 2. Table View Render
+    const tableBody = document.getElementById('wardTableBody');
+    if (tableBody) {
+        if (filtered.length === 0) {
+            tableBody.innerHTML = `<tr><td colspan="13" style="text-align:center;color:#94a3b8;padding:30px;">No patients admitted.</td></tr>`;
+        } else {
+            tableBody.innerHTML = filtered.map((p, idx) => `
+                <tr>
+                    <td><strong>${escapeHtml(p.id)}</strong></td>
+                    <td><strong style="color:#fff;">${escapeHtml(p.name)}</strong></td>
+                    <td>${p.age}</td>
+                    <td>${escapeHtml(p.condition)}</td>
+                    <td><span style="color:#f43f5e;font-weight:700;">${p.heartRate.toFixed(1)}</span> bpm</td>
+                    <td><span style="color:#06b6d4;font-weight:700;">${p.spo2.toFixed(1)}</span> %</td>
+                    <td>${p.temp.toFixed(1)} &deg;C</td>
+                    <td>${p.respRate.toFixed(1)} /min</td>
+                    <td>${Math.round(p.intake)} ml</td>
+                    <td>${Math.round(p.output)} ml</td>
+                    <td><strong style="color:#60a5fa">${p.balance >= 0 ? '+' : ''}${Math.round(p.balance)} ml</strong></td>
+                    <td><span class="risk-tag ${p.risk.includes('CRITICAL') ? 'risk-critical' : p.risk.includes('WARNING') || p.risk.includes('ALERT') || p.risk.includes('MILD') ? 'risk-warning' : 'risk-stable'}">${escapeHtml(p.risk)}</span></td>
+                    <td>
+                        <button class="btn-secondary" style="padding:4px 8px;font-size:0.75rem;" onclick="displayClinicalReport('${p.id}')">Report</button>
+                        <button class="btn-danger" style="padding:4px 8px;font-size:0.75rem;" onclick="dischargeBed('${p.id}')">✕</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+    }
+
+    // 3. Alerts View Render
+    const alertsContainer = document.getElementById('alertsStreamContainer');
+    if (alertsContainer) {
+        const alerted = wardPatients.filter(p => p.risk && (p.risk.includes('ALERT') || p.risk.includes('WARNING') || p.risk.includes('CRITICAL') || p.risk.includes('MILD')));
+        if (alerted.length === 0) {
+            alertsContainer.innerHTML = `
+                <div style="text-align:center;padding:50px 20px;color:#10b981;">
+                    <div style="font-size:3rem;margin-bottom:12px;">✅</div>
+                    <h3 style="color:#fff;font-size:1.25rem;">All Patients Within Normal Physiological Limits</h3>
+                    <p style="color:#94a3b8;margin-top:6px;">No critical or warning alerts detected across the ward monitors.</p>
+                </div>
+            `;
+        } else {
+            alertsContainer.innerHTML = alerted.map(p => `
+                <div style="background:#090d16;border:1px solid var(--border-subtle);border-left:4px solid #ef4444;border-radius:10px;padding:16px 20px;margin-bottom:12px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <strong style="color:#fff;font-size:1.1rem;">${escapeHtml(p.name)} (${escapeHtml(p.id)}) &bull; ${escapeHtml(p.condition)} Patient</strong>
+                        <span class="risk-tag risk-critical">${escapeHtml(p.risk)}</span>
+                    </div>
+                    <div style="font-size:0.86rem;color:#cbd5e1;display:flex;gap:18px;flex-wrap:wrap;">
+                        <span>💓 HR: <strong>${p.heartRate.toFixed(1)} bpm</strong></span>
+                        <span>🫁 SpO2: <strong>${p.spo2.toFixed(1)}%</strong></span>
+                        <span>🌡️ Temp: <strong>${p.temp.toFixed(1)} &deg;C</strong></span>
+                        <span>💧 Fluid Balance: <strong style="color:#60a5fa">${p.balance >= 0 ? '+' : ''}${Math.round(p.balance)} ml</strong></span>
+                    </div>
+                </div>
+            `).join('');
+        }
+    }
+}
+
+// ECG Canvas Oscillator
+const ecgOffsets = {};
+function animateEcgRhythm(canvasId, hr) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+    
+    if (ecgOffsets[canvasId] === undefined) ecgOffsets[canvasId] = 0;
+    ecgOffsets[canvasId] = (ecgOffsets[canvasId] + 3) % w;
+    const offset = ecgOffsets[canvasId];
+
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = '#06b6d4';
+    ctx.lineWidth = 1.8;
+    ctx.shadowBlur = 6;
+    ctx.shadowColor = '#06b6d4';
+    ctx.beginPath();
+
+    const mid = h / 2;
+    for (let x = 0; x < w; x++) {
+        const relX = (x + offset) % 100;
+        let y = mid;
+        if (relX > 40 && relX < 44) y = mid - 4;
+        else if (relX >= 44 && relX < 49) y = mid + 14;
+        else if (relX >= 49 && relX < 54) y = mid - 16;
+        else if (relX >= 54 && relX < 59) y = mid + 5;
+        
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+}
+
+// Modals
+function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+function openVitalsModal(id) {
+    const p = wardPatients.find(x => x.id === id);
+    if (!p) return;
+    document.getElementById('vTargetId').value = p.id;
+    document.getElementById('vPatientLabel').value = `${p.id} - ${p.name}`;
+    document.getElementById('vInputHr').value = p.heartRate;
+    document.getElementById('vInputSpo2').value = p.spo2;
+    document.getElementById('vInputTemp').value = p.temp;
+    document.getElementById('vInputRr').value = p.respRate;
+    openModal('vitalsModal');
+}
+
+function openFluidModal(id) {
+    const p = wardPatients.find(x => x.id === id);
+    if (!p) return;
+    document.getElementById('fTargetId').value = p.id;
+    document.getElementById('fPatientLabel').value = `${p.id} - ${p.name} (Net: ${p.balance} ml)`;
+    document.getElementById('fInputIntake').value = 250;
+    document.getElementById('fInputOutput').value = 180;
+    openModal('fluidModal');
+}
+
+// User-Driven Patient Admission
+async function executePatientAdmission() {
+    const id = document.getElementById('inputPId').value.trim();
+    const name = document.getElementById('inputPName').value.trim();
+    const age = parseInt(document.getElementById('inputPAge').value);
+    const type = document.getElementById('inputPType').value;
+    const hr = parseFloat(document.getElementById('inputPHr').value) || 75.0;
+    const spo2 = parseFloat(document.getElementById('inputPSpo2').value) || 98.0;
+
+    if (!id) {
+        alert("Please enter a Patient ID (e.g. P101).");
+        return;
+    }
+    if (!name) {
+        alert("Please enter the patient's full name.");
+        return;
+    }
+    if (isNaN(age) || age <= 0 || age > 120) {
+        alert("Please enter an age between 1 and 120.");
+        return;
+    }
+    if (wardPatients.some(p => p.id.toUpperCase() === id.toUpperCase())) {
+        alert(`A patient with ID '${id}' is already admitted in the ward.`);
+        return;
+    }
+
+    const newPatient = {
+        id: id.toUpperCase(),
+        name: name,
+        age: age,
+        condition: type,
+        risk: "Stable Baseline",
+        heartRate: hr,
+        spo2: spo2,
+        temp: 36.8,
+        respRate: 16.0,
+        intake: 0.0,
+        output: 0.0,
+        balance: 0.0,
+        mobility: type === "Coma" ? "Comatose / Completely Bed-Bound (MPU6050 Accelerometer)" :
+                  type === "Paralysis" ? "Limited Mobility (Pressure-Relief Mat)" : "ICU Ventilator Dependent",
+        protocol: type === "Coma" ? "Q2H Repositioning protocol & hourly GCS check" :
+                  type === "Paralysis" ? "Pressure-relief mattress cycling & skin check" : "Multi-parameter continuous surveillance"
+    };
+
+    wardPatients.push(newPatient);
+    persistPatients();
+
+    // Reset inputs
+    document.getElementById('inputPId').value = "";
+    document.getElementById('inputPName').value = "";
+    document.getElementById('inputPAge').value = "";
+
+    // Sync to Java backend if running
+    if (isJavaBackendOnline) {
+        fetch(`${BACKEND_URL}/api/patient/add?id=${encodeURIComponent(id)}&name=${encodeURIComponent(name)}&age=${age}&type=${encodeURIComponent(type)}`, { method: 'POST' }).catch(() => {});
+    }
+
+    closeModal('addPatientModal');
+    renderWardInterface();
+    showToast(`Patient ${name} (${id.toUpperCase()}) admitted successfully!`, 'success');
+}
+
+async function executeVitalsUpdate() {
+    const id = document.getElementById('vTargetId').value;
+    const p = wardPatients.find(x => x.id === id);
+    if (!p) return;
+
+    const hr = parseFloat(document.getElementById('vInputHr').value);
+    const spo2 = parseFloat(document.getElementById('vInputSpo2').value);
+    const temp = parseFloat(document.getElementById('vInputTemp').value);
+    const rr = parseFloat(document.getElementById('vInputRr').value);
+
+    p.heartRate = hr;
+    p.spo2 = spo2;
+    p.temp = temp;
+    p.respRate = rr;
+    p.risk = evaluateClinicalRisk(p);
+    persistPatients();
+
+    if (isJavaBackendOnline) {
+        fetch(`${BACKEND_URL}/api/vitals/update?id=${encodeURIComponent(id)}&hr=${hr}&spo2=${spo2}&temp=${temp}&rr=${rr}`, { method: 'POST' }).catch(() => {});
+    }
+
+    closeModal('vitalsModal');
+    renderWardInterface();
+    showToast(`Telemetry updated for ${p.name}`, 'success');
+}
+
+async function executeFluidRecord() {
+    const id = document.getElementById('fTargetId').value;
+    const p = wardPatients.find(x => x.id === id);
+    if (!p) return;
+
+    const inAmount = parseFloat(document.getElementById('fInputIntake').value) || 0;
+    const outAmount = parseFloat(document.getElementById('fInputOutput').value) || 0;
+
+    p.intake += inAmount;
+    p.output += outAmount;
+    p.balance = Math.round((p.intake - p.output) * 10) / 10;
+    p.risk = evaluateClinicalRisk(p);
+    persistPatients();
+
+    if (isJavaBackendOnline) {
+        fetch(`${BACKEND_URL}/api/fluid/record?id=${encodeURIComponent(id)}&intake=${inAmount}&output=${outAmount}`, { method: 'POST' }).catch(() => {});
+    }
+
+    closeModal('fluidModal');
+    renderWardInterface();
+    showToast(`Fluid recorded for ${p.name}: Net ${p.balance >= 0 ? '+' : ''}${p.balance} ml`, 'success');
+}
+
+function dischargeBed(id) {
+    const p = wardPatients.find(x => x.id === id);
+    if (!p) return;
+    if (confirm(`Confirm discharge of patient ${p.name} (${p.id})?`)) {
+        wardPatients = wardPatients.filter(x => x.id !== id);
+        persistPatients();
+        renderWardInterface();
+        showToast(`Patient ${p.name} discharged`, 'info');
+    }
+}
+
+function displayClinicalReport(id) {
+    const p = wardPatients.find(x => x.id === id);
+    if (!p) return;
+    currentReportObject = p;
+
+    const dateStr = new Date().toLocaleString();
+    const text = `================================================================
+          PROJECT SYNERGY: IOT CLINICAL TELEMETRY REPORT
+================================================================
+Generated On     : ${dateStr}
+Bed / Patient ID : ${p.id}
+Full Patient Name: ${p.name}
+Age              : ${p.age} years
+Category         : ${p.condition} Patient
+Clinical Status  : ${p.risk}
+
+----------------------------------------------------------------
+1. CONTINUOUS PHYSIOLOGICAL VITALS (IOT TELEMETRY)
+----------------------------------------------------------------
+ • Heart Rate (MAX30102 Sensor)  : ${p.heartRate.toFixed(1)} bpm
+ • SpO2 Oxygen Saturation        : ${p.spo2.toFixed(1)} %
+ • Body Temperature (DS18B20)    : ${p.temp.toFixed(1)} °C
+ • Respiratory Rate              : ${p.respRate.toFixed(1)} breaths/min
+
+----------------------------------------------------------------
+2. FLUID INTAKE / OUTPUT (HX711 LOAD CELL WEIGHT TRANSDUCERS)
+----------------------------------------------------------------
+ • Cumulative IV Inflow          : ${Math.round(p.intake)} ml
+ • Cumulative Catheter Outflow   : ${Math.round(p.output)} ml
+ • Net Fluid Balance             : ${p.balance >= 0 ? '+' : ''}${Math.round(p.balance)} ml
+ • Clinical Hydration Evaluation : ${p.balance > 1500 ? 'Fluid Overload Alert (Pulmonary Edema Risk)' : p.balance < -1000 ? 'Severe Fluid Deficit Alert (Hypovolemia)' : 'Balanced Fluid Hydration'}
+
+----------------------------------------------------------------
+3. PATIENT MOBILITY & BED POSTURE (MPU6050 3-AXIS ACCELEROMETER)
+----------------------------------------------------------------
+ • Posture Status: ${p.mobility}
+
+----------------------------------------------------------------
+4. PRESCRIBED CONDITION CARE PROTOCOL
+----------------------------------------------------------------
+ • ${p.protocol}
+================================================================
+Academic Demonstration Prototype · Evaluator Presentation Ready
+`;
+
+    document.getElementById('reportDetailsText').innerText = text;
+    openModal('reportModal');
+}
+
+function downloadClinicalReport() {
+    if (!currentReportObject) return;
+    const content = document.getElementById('reportDetailsText').innerText;
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Clinical_Report_${currentReportObject.id}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function exportWardCsv() {
+    if (wardPatients.length === 0) {
+        alert("No patients admitted yet to export.");
+        return;
+    }
+    let csv = "PatientID,Name,Age,Condition,HeartRate,SpO2,Temperature,RespiratoryRate,TotalIntake,TotalOutput,NetBalance,MobilityStatus\n";
+    wardPatients.forEach(p => {
+        csv += `"${p.id}","${p.name}",${p.age},"${p.condition}",${p.heartRate},${p.spo2},${p.temp},${p.respRate},${p.intake},${p.output},${p.balance},"${p.mobility}"\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = "ward_patients_telemetry.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("CSV Exported successfully", "success");
+}
+
+async function toggleIotStreaming() {
+    isIotStreaming = !isIotStreaming;
+    const btn = document.getElementById('iotToggleBtn');
+    if (isIotStreaming) {
+        btn.innerText = "⚡ IoT Stream: Active (3s)";
+        btn.className = "btn-warn";
+        showToast("Background IoT Sensor Simulation Resumed", "info");
+    } else {
+        btn.innerText = "⏸ IoT Stream: Paused";
+        btn.className = "btn-secondary";
+        showToast("Background IoT Sensor Simulation Paused", "info");
+    }
+
+    if (isJavaBackendOnline) {
+        fetch(`${BACKEND_URL}/api/iot/toggle`).catch(() => {});
+    }
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>"']/g, c => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
+    }[c]));
+}
+
+// Initial draw and continuous cloud/backend synchronization (every 3 seconds)
+syncTelemetryLoop();
+setInterval(syncTelemetryLoop, 3000);
+</script>
+</body>
+</html>
