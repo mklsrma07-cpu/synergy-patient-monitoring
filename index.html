@@ -848,16 +848,11 @@
         </p>
         <div class="form-row">
             <label>Medical Staff ID / Username</label>
-            <input id="loginUsername" placeholder="e.g. admin or doctor" value="admin">
+            <input id="loginUsername" placeholder="Enter username (e.g. admin)" value="" autocomplete="username">
         </div>
         <div class="form-row">
             <label>Security Password</label>
-            <input id="loginPassword" type="password" placeholder="Enter password" value="synergy2026">
-        </div>
-        <div style="margin-top: 8px; margin-bottom: 14px;">
-            <button type="button" class="btn-secondary" style="width: 100%; justify-content: center; font-size: 0.74rem; padding: 7px;" onclick="fillDemoCredentials()">
-                ⚡ Auto-fill Doctor Demo Credentials (admin / synergy2026)
-            </button>
+            <input id="loginPassword" type="password" placeholder="Enter password" value="" autocomplete="current-password" onkeydown="if(event.key==='Enter') executeDoctorLogin()">
         </div>
         <div class="modal-btns">
             <button class="btn-secondary" onclick="closeModal('loginModal')">Cancel</button>
@@ -983,7 +978,7 @@ async function executeDoctorLogin() {
             showToast(`Signed in as ${currentDoctorName}! Full ward editing unlocked.`, "success");
             return;
         } else {
-            alert(data.message || "Invalid doctor / admin credentials. Try admin / synergy2026.");
+            alert(data.message || "Invalid username or password. Please try again.");
         }
     } catch (e) {
         if ((username === 'admin' || username === 'doctor') && (password === 'synergy2026' || password === 'admin123')) {
@@ -1000,13 +995,8 @@ async function executeDoctorLogin() {
             showToast(`Signed in as ${currentDoctorName}!`, "success");
             return;
         }
-        alert("Invalid login credentials.");
+        alert("Invalid username or password. Please try again.");
     }
-}
-
-function fillDemoCredentials() {
-    document.getElementById('loginUsername').value = "admin";
-    document.getElementById('loginPassword').value = "synergy2026";
 }
 
 function logoutAdmin() {
@@ -1532,7 +1522,15 @@ function animateEcgRhythm(canvasId, hr) {
 }
 
 // Modals
-function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+function openModal(id) {
+    if (id === 'loginModal') {
+        const u = document.getElementById('loginUsername');
+        const p = document.getElementById('loginPassword');
+        if (u) u.value = '';
+        if (p) p.value = '';
+    }
+    document.getElementById(id).style.display = 'flex';
+}
 function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
 function openVitalsModal(id) {
