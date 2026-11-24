@@ -613,14 +613,27 @@
         <div class="header-controls">
             <div id="connPill" class="status-pill status-online">
                 <div class="status-dot"></div>
-                <span id="connLabel">Global Cloud Active (Multi-Device)</span>
+                <span id="connLabel">Global Cloud Active</span>
             </div>
+            <div id="authPill" class="status-pill">
+                <span>👁️</span>
+                <span id="authRoleLabel">Observer (Read-Only)</span>
+            </div>
+            <button id="authBtn" class="btn-secondary" style="padding: 5px 12px; font-size: 0.78rem;" onclick="openModal('loginModal')">🔐 Doctor Login</button>
             <div class="status-pill">
                 <span>Clock: </span>
                 <span id="liveClock" style="font-family:ui-monospace, monospace; color:#ffffff;">--:--:--</span>
             </div>
         </div>
     </header>
+
+    <!-- Observer Read-Only Notice (Visible only in Viewer Mode) -->
+    <div id="viewerBanner" style="background:#090e12; border: 1px solid #1a2530; border-left: 3px solid var(--c-teal); border-radius: 6px; padding: 10px 16px; margin-bottom: 18px; font-size: 0.8rem; color: var(--text-secondary); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+        <div>
+            <strong style="color:#ffffff;">Observer / Evaluator Access (Live Cloud):</strong> Viewing real-time telemetry across ward beds. Only authenticated Doctors / Ward Admins can admit patients or modify vitals.
+        </div>
+        <button class="btn-secondary" style="padding: 4px 10px; font-size: 0.75rem; border-color: var(--c-teal); color: var(--c-teal);" onclick="openModal('loginModal')">Sign In as Doctor &rarr;</button>
+    </div>
 
     <!-- Ward Summary Metric Cards (4-Color System) -->
     <div class="stats-row">
@@ -671,11 +684,11 @@
                 <span class="search-icon">&#x2315;</span>
                 <input type="text" id="wardSearch" placeholder="Filter patient or bed ID..." oninput="handleFilterSearch()">
             </div>
-            <button class="btn-success" onclick="openModal('addPatientModal')">+ Admit Patient</button>
+            <button class="btn-success" onclick="requestPatientAdmission()">+ Admit Patient</button>
             <button id="iotToggleBtn" class="btn-warn" onclick="toggleIotStreaming()">IoT Stream: Active (3s)</button>
             <button class="btn-secondary" onclick="manualCloudSync()" title="Synchronize with global cloud ward">Sync Cloud</button>
             <button class="btn-secondary" onclick="exportWardCsv()">Export CSV</button>
-            <button class="btn-danger" onclick="clearAllPatients()" title="Reset all beds in ward">Clear Ward</button>
+            <button id="clearWardBtn" class="btn-danger" onclick="requestClearWard()" title="Reset all beds in ward">Clear Ward</button>
         </div>
     </div>
 
@@ -826,6 +839,33 @@
     </div>
 </div>
 
+<!-- 5. Doctor / Admin Login Modal -->
+<div id="loginModal" class="modal-backdrop">
+    <div class="modal-window" style="max-width: 440px;">
+        <h2>Doctor / Ward Admin Sign In</h2>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 16px;">
+            Sign in with authorized medical credentials to admit patients, calibrate live sensor telemetry, and modify clinical protocols.
+        </p>
+        <div class="form-row">
+            <label>Medical Staff ID / Username</label>
+            <input id="loginUsername" placeholder="e.g. admin or doctor" value="admin">
+        </div>
+        <div class="form-row">
+            <label>Security Password</label>
+            <input id="loginPassword" type="password" placeholder="Enter password" value="synergy2026">
+        </div>
+        <div style="margin-top: 8px; margin-bottom: 14px;">
+            <button type="button" class="btn-secondary" style="width: 100%; justify-content: center; font-size: 0.74rem; padding: 7px;" onclick="fillDemoCredentials()">
+                ⚡ Auto-fill Doctor Demo Credentials (admin / synergy2026)
+            </button>
+        </div>
+        <div class="modal-btns">
+            <button class="btn-secondary" onclick="closeModal('loginModal')">Cancel</button>
+            <button class="btn-success" onclick="executeDoctorLogin()">Sign In as Doctor</button>
+        </div>
+    </div>
+</div>
+
 <!-- Toast Container -->
 <div id="toastContainer"></div>
 
@@ -840,7 +880,7 @@ let currentReportObject = null;
 let isIotStreaming = true;
 let isJavaBackendOnline = false;
 
-const BACKEND_URL = window.location.origin.startsWith('http') ? window.location.origin : 'http://127.0.0.1:8080';
+const BACKEND_URL = 'http://127.0.0.1:8080';
 
 // Initialize from localStorage
 try {
@@ -852,36 +892,198 @@ try {
     wardPatients = [];
 }
 
-const CLOUD_SYNC_URL = "https://api.restful-api.dev/objects/ff808181a09d98f701a20db0572e360c";
+const CLOUD_API_URL = (window.location.hostname && window.location.hostname.includes('vercel.app'))
+  ? '/api/patients'
+  : 'https://synergy-patient-monitoring.vercel.app/api/patients';
+
 let isSyncingToCloud = false;
+let isUserAdmin = false;
+let currentAdminToken = "";
+let currentDoctorName = "";
+
+// Check saved admin session
+try {
+    const savedToken = localStorage.getItem("synergy_admin_token");
+    const savedDoc = localStorage.getItem("synergy_doctor_name");
+    if (savedToken && savedToken === "synergy_admin_session_token_2026") {
+        isUserAdmin = true;
+        currentAdminToken = savedToken;
+        currentDoctorName = savedDoc || "Dr. Synergy (Ward Admin)";
+    }
+} catch (e) {}
+
+function updateAuthUI() {
+    const authPill = document.getElementById('authPill');
+    const authRoleLabel = document.getElementById('authRoleLabel');
+    const authBtn = document.getElementById('authBtn');
+    const viewerBanner = document.getElementById('viewerBanner');
+
+    if (isUserAdmin) {
+        if (authPill) {
+            authPill.className = "status-pill status-admin";
+            authPill.style.borderColor = "rgba(55, 224, 189, 0.4)";
+            authPill.style.color = "var(--c-green)";
+            authPill.style.background = "rgba(55, 224, 189, 0.08)";
+            authPill.innerHTML = `<span>👑</span> <span>${escapeHtml(currentDoctorName)}</span>`;
+        }
+        if (authBtn) {
+            authBtn.className = "btn-secondary";
+            authBtn.innerText = "Logout";
+            authBtn.onclick = logoutAdmin;
+        }
+        if (viewerBanner) {
+            viewerBanner.style.display = 'none';
+        }
+    } else {
+        if (authPill) {
+            authPill.className = "status-pill status-viewer";
+            authPill.style.borderColor = "var(--border-default)";
+            authPill.style.color = "var(--text-secondary)";
+            authPill.style.background = "#0f0f0f";
+            authPill.innerHTML = `<span>👁️</span> <span>Observer (Read-Only)</span>`;
+        }
+        if (authBtn) {
+            authBtn.className = "btn-secondary";
+            authBtn.innerText = "🔐 Doctor Login";
+            authBtn.onclick = () => openModal('loginModal');
+        }
+        if (viewerBanner) {
+            viewerBanner.style.display = 'flex';
+        }
+    }
+}
+
+async function executeDoctorLogin() {
+    const username = document.getElementById('loginUsername').value.trim();
+    const password = document.getElementById('loginPassword').value.trim();
+
+    if (!username || !password) {
+        alert("Please enter both username and password.");
+        return;
+    }
+
+    try {
+        const res = await fetch(CLOUD_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'login', username, password })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            isUserAdmin = true;
+            currentAdminToken = data.token;
+            currentDoctorName = data.doctorName || "Dr. Synergy (Ward Admin)";
+            try {
+                localStorage.setItem("synergy_admin_token", currentAdminToken);
+                localStorage.setItem("synergy_doctor_name", currentDoctorName);
+            } catch (e) {}
+            closeModal('loginModal');
+            updateAuthUI();
+            renderWardInterface();
+            showToast(`Signed in as ${currentDoctorName}! Full ward editing unlocked.`, "success");
+            return;
+        } else {
+            alert(data.message || "Invalid doctor / admin credentials. Try admin / synergy2026.");
+        }
+    } catch (e) {
+        if ((username === 'admin' || username === 'doctor') && (password === 'synergy2026' || password === 'admin123')) {
+            isUserAdmin = true;
+            currentAdminToken = "synergy_admin_session_token_2026";
+            currentDoctorName = "Dr. Synergy (Ward Admin)";
+            try {
+                localStorage.setItem("synergy_admin_token", currentAdminToken);
+                localStorage.setItem("synergy_doctor_name", currentDoctorName);
+            } catch (e) {}
+            closeModal('loginModal');
+            updateAuthUI();
+            renderWardInterface();
+            showToast(`Signed in as ${currentDoctorName}!`, "success");
+            return;
+        }
+        alert("Invalid login credentials.");
+    }
+}
+
+function fillDemoCredentials() {
+    document.getElementById('loginUsername').value = "admin";
+    document.getElementById('loginPassword').value = "synergy2026";
+}
+
+function logoutAdmin() {
+    isUserAdmin = false;
+    currentAdminToken = "";
+    currentDoctorName = "";
+    try {
+        localStorage.removeItem("synergy_admin_token");
+        localStorage.removeItem("synergy_doctor_name");
+    } catch (e) {}
+    updateAuthUI();
+    renderWardInterface();
+    showToast("Logged out to Observer (Read-Only) Mode.", "info");
+}
+
+function requestPatientAdmission() {
+    if (!isUserAdmin) {
+        showToast("Doctor login required to admit patients.", "alert");
+        openModal('loginModal');
+        return;
+    }
+    openModal('addPatientModal');
+}
+
+function requestClearWard() {
+    if (!isUserAdmin) {
+        showToast("Doctor login required to clear ward.", "alert");
+        openModal('loginModal');
+        return;
+    }
+    clearAllPatients();
+}
+
+function requestDoctorAction(action, id) {
+    if (!isUserAdmin) {
+        showToast(`Doctor login required to ${action} patients.`, "alert");
+        openModal('loginModal');
+        return;
+    }
+    if (action === 'vitals') openVitalsModal(id);
+    else if (action === 'fluid') openFluidModal(id);
+    else if (action === 'discharge') dischargeBed(id);
+}
 
 function persistPatients(syncCloud = true) {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(wardPatients));
     } catch (e) {}
-    if (syncCloud) {
+    if (syncCloud && isUserAdmin) {
         pushToCloudSync();
     }
 }
 
 async function pushToCloudSync() {
-    if (isSyncingToCloud) return;
+    if (!isUserAdmin || isSyncingToCloud) return;
     try {
         isSyncingToCloud = true;
-        await fetch(CLOUD_SYNC_URL, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+        const res = await fetch(CLOUD_API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-admin-token': currentAdminToken
+            },
             body: JSON.stringify({
-                name: 'SynergyWard',
-                data: {
-                    patients: wardPatients,
-                    updatedAt: Date.now()
-                }
+                adminToken: currentAdminToken,
+                patients: wardPatients
             })
         });
-        updateServerStatus(true, "Global Cloud Synced (Multi-Device)");
+        const data = await res.json();
+        if (res.ok && data.success) {
+            updateServerStatus(true, "Global Cloud Synced (Multi-Device)");
+        } else if (res.status === 403) {
+            showToast("Doctor session expired. Please sign in again.", "alert");
+            logoutAdmin();
+        }
     } catch (e) {
-        console.warn("Cloud sync warning:", e);
+        console.warn("Cloud push warning:", e);
     } finally {
         isSyncingToCloud = false;
     }
@@ -889,23 +1091,24 @@ async function pushToCloudSync() {
 
 async function fetchCloudData() {
     try {
-        const res = await fetch(CLOUD_SYNC_URL, { cache: 'no-store' });
+        const res = await fetch(`${CLOUD_API_URL}?t=${Date.now()}`, { cache: 'no-store' });
         if (res.ok) {
             const result = await res.json();
-            if (result && result.data && Array.isArray(result.data.patients)) {
-                const cloudPatients = result.data.patients;
+            if (result && Array.isArray(result.data)) {
+                const cloudPatients = result.data;
                 if (JSON.stringify(cloudPatients) !== JSON.stringify(wardPatients)) {
                     wardPatients = cloudPatients;
-                    persistPatients(false);
+                    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(wardPatients)); } catch (e) {}
                     renderWardInterface();
                 }
-                updateServerStatus(true, "Global Cloud Active (Multi-Device)");
+                updateServerStatus(true, "Global Cloud Active (All Users Synced)");
                 return true;
             }
         }
     } catch (e) {
-        updateServerStatus(false, "Standalone Web Mode (Local Storage)");
+        console.warn("Cloud read warning:", e);
     }
+    updateServerStatus(false, "Offline / Local Storage Cached");
     return false;
 }
 
@@ -966,58 +1169,62 @@ function changeView(view) {
 // Backend Connectivity Check & Cloud Sync Loop
 async function syncTelemetryLoop() {
     let javaOk = false;
-    try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 1200);
-        const res = await fetch(`${BACKEND_URL}/api/patients`, { cache: 'no-store', signal: controller.signal });
-        clearTimeout(timeoutId);
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 1200);
+            const res = await fetch(`${BACKEND_URL}/api/patients`, { cache: 'no-store', signal: controller.signal });
+            clearTimeout(timeoutId);
 
-        if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data) && data.length > 0) {
-                data.forEach(bp => {
-                    let existing = wardPatients.find(p => p.id.toUpperCase() === bp.id.toUpperCase());
-                    if (!existing) {
-                        existing = {
-                            id: bp.id,
-                            name: bp.name,
-                            age: bp.age,
-                            condition: bp.condition,
-                            risk: bp.risk || evaluateClinicalRisk(bp),
-                            heartRate: bp.heartRate || 75.0,
-                            spo2: bp.spo2 || 98.0,
-                            temp: bp.temp || 36.8,
-                            respRate: bp.respRate || 16.0,
-                            intake: bp.intake || 0.0,
-                            output: bp.output || 0.0,
-                            balance: (bp.intake || 0) - (bp.output || 0),
-                            mobility: bp.mobility || (bp.condition.includes("Coma") ? "Bed-bound (Tilt Monitored)" : "Limited Mobility"),
-                            protocol: bp.condition.includes("Coma") ? "Q2H Turn schedule & GCS check" : "Continuous clinical surveillance"
-                        };
-                        wardPatients.push(existing);
-                    } else {
-                        existing.heartRate = bp.heartRate || existing.heartRate;
-                        existing.spo2 = bp.spo2 || existing.spo2;
-                        existing.temp = bp.temp || existing.temp;
-                        existing.respRate = bp.respRate || existing.respRate;
-                        existing.intake = bp.intake !== undefined ? bp.intake : existing.intake;
-                        existing.output = bp.output !== undefined ? bp.output : existing.output;
-                        existing.balance = existing.intake - existing.output;
-                        existing.risk = evaluateClinicalRisk(existing);
-                    }
-                });
-                persistPatients(true);
+            if (res.ok) {
+                const data = await res.json();
+                if (Array.isArray(data) && data.length > 0) {
+                    data.forEach(bp => {
+                        let existing = wardPatients.find(p => p.id.toUpperCase() === bp.id.toUpperCase());
+                        if (!existing) {
+                            existing = {
+                                id: bp.id,
+                                name: bp.name,
+                                age: bp.age,
+                                condition: bp.condition,
+                                risk: bp.risk || evaluateClinicalRisk(bp),
+                                heartRate: bp.heartRate || 75.0,
+                                spo2: bp.spo2 || 98.0,
+                                temp: bp.temp || 36.8,
+                                respRate: bp.respRate || 16.0,
+                                intake: bp.intake || 0.0,
+                                output: bp.output || 0.0,
+                                balance: (bp.intake || 0) - (bp.output || 0),
+                                mobility: bp.mobility || (bp.condition.includes("Coma") ? "Bed-bound (Tilt Monitored)" : "Limited Mobility"),
+                                protocol: bp.condition.includes("Coma") ? "Q2H Turn schedule & GCS check" : "Continuous clinical surveillance"
+                            };
+                            wardPatients.push(existing);
+                        } else {
+                            existing.heartRate = bp.heartRate || existing.heartRate;
+                            existing.spo2 = bp.spo2 || existing.spo2;
+                            existing.temp = bp.temp || existing.temp;
+                            existing.respRate = bp.respRate || existing.respRate;
+                            existing.intake = bp.intake !== undefined ? bp.intake : existing.intake;
+                            existing.output = bp.output !== undefined ? bp.output : existing.output;
+                            existing.balance = existing.intake - existing.output;
+                            existing.risk = evaluateClinicalRisk(existing);
+                        }
+                    });
+                    persistPatients(true);
+                }
+                updateServerStatus(true, "Java Backend Live (Port 8080)");
+                javaOk = true;
+                isJavaBackendOnline = true;
             }
-            updateServerStatus(true, "Java Backend Live (Port 8080)");
-            javaOk = true;
+        } catch (e) {
+            javaOk = false;
+            isJavaBackendOnline = false;
         }
-    } catch (e) {
-        javaOk = false;
     }
 
     if (!javaOk) {
         await fetchCloudData();
-        if (isIotStreaming && wardPatients.length > 0) {
+        if (isUserAdmin && isIotStreaming && wardPatients.length > 0) {
             simulateTelemetryVariations();
         }
     }
@@ -1104,7 +1311,7 @@ function renderWardInterface() {
             <div class="empty-icon">🏥</div>
             <h2>IoT Ward Ready for Patient Admission</h2>
             <p>No patients are currently admitted. Register your first patient to assign a bed monitor and start continuous real-time IoT vital signs telemetry, animated ECG waveforms, and fluid tracking.</p>
-            <button class="btn-large btn-success" onclick="openModal('addPatientModal')">Admit / Register First Patient</button>
+            <button class="btn-large btn-success" onclick="requestPatientAdmission()">Admit / Register First Patient</button>
         </div>
         `;
     } else if (filtered.length === 0) {
@@ -1189,10 +1396,17 @@ function renderWardInterface() {
 
                 <!-- Quick Action Buttons -->
                 <div class="card-actions">
+                    ${isUserAdmin ? `
                     <button class="btn-secondary" onclick="openVitalsModal('${p.id}')">Vitals</button>
                     <button class="btn-secondary" onclick="openFluidModal('${p.id}')">Fluid</button>
                     <button class="btn-secondary" onclick="displayClinicalReport('${p.id}')">Report</button>
                     <button class="btn-danger" onclick="dischargeBed('${p.id}')" title="Discharge patient">Discharge</button>
+                    ` : `
+                    <button class="btn-secondary" style="opacity:0.75;" onclick="requestDoctorAction('vitals', '${p.id}')" title="Doctor login required">🔒 Vitals</button>
+                    <button class="btn-secondary" style="opacity:0.75;" onclick="requestDoctorAction('fluid', '${p.id}')" title="Doctor login required">🔒 Fluid</button>
+                    <button class="btn-secondary" onclick="displayClinicalReport('${p.id}')">Report</button>
+                    <button class="btn-secondary" style="opacity:0.6;" onclick="requestDoctorAction('discharge', '${p.id}')" title="Doctor login required">🔒 Discharge</button>
+                    `}
                 </div>
             </div>
             `;
@@ -1224,7 +1438,11 @@ function renderWardInterface() {
                     <td><span class="risk-tag ${p.risk.includes('CRITICAL') ? 'risk-critical' : p.risk.includes('WARNING') || p.risk.includes('ALERT') || p.risk.includes('MILD') ? 'risk-warning' : 'risk-stable'}">${escapeHtml(p.risk)}</span></td>
                     <td>
                         <button class="btn-secondary" style="padding:4px 8px;font-size:0.75rem;" onclick="displayClinicalReport('${p.id}')">Report</button>
-                        <button class="btn-danger" style="padding:4px 8px;font-size:0.75rem;" onclick="dischargeBed('${p.id}')">✕</button>
+                        ${isUserAdmin ? `
+                        <button class="btn-danger" style="padding:4px 8px;font-size:0.75rem;" onclick="dischargeBed('${p.id}')" title="Discharge patient">✕</button>
+                        ` : `
+                        <button class="btn-secondary" style="padding:4px 8px;font-size:0.75rem;opacity:0.6;" onclick="requestDoctorAction('discharge', '${p.id}')" title="Doctor login required">🔒</button>
+                        `}
                     </td>
                 </tr>
             `).join('');
@@ -1341,6 +1559,12 @@ function openFluidModal(id) {
 
 // User-Driven Patient Admission
 async function executePatientAdmission() {
+    if (!isUserAdmin) {
+        showToast("Doctor / Admin login required to admit patients.", "alert");
+        closeModal('addPatientModal');
+        openModal('loginModal');
+        return;
+    }
     const id = document.getElementById('inputPId').value.trim();
     const name = document.getElementById('inputPName').value.trim();
     const age = parseInt(document.getElementById('inputPAge').value);
@@ -1403,6 +1627,12 @@ async function executePatientAdmission() {
 }
 
 async function executeVitalsUpdate() {
+    if (!isUserAdmin) {
+        showToast("Doctor / Admin login required to update vitals.", "alert");
+        closeModal('vitalsModal');
+        openModal('loginModal');
+        return;
+    }
     const id = document.getElementById('vTargetId').value;
     const p = wardPatients.find(x => x.id === id);
     if (!p) return;
@@ -1429,6 +1659,12 @@ async function executeVitalsUpdate() {
 }
 
 async function executeFluidRecord() {
+    if (!isUserAdmin) {
+        showToast("Doctor / Admin login required to record fluids.", "alert");
+        closeModal('fluidModal');
+        openModal('loginModal');
+        return;
+    }
     const id = document.getElementById('fTargetId').value;
     const p = wardPatients.find(x => x.id === id);
     if (!p) return;
@@ -1452,6 +1688,11 @@ async function executeFluidRecord() {
 }
 
 function dischargeBed(id) {
+    if (!isUserAdmin) {
+        showToast("Doctor / Admin login required to discharge patients.", "alert");
+        openModal('loginModal');
+        return;
+    }
     const p = wardPatients.find(x => x.id === id);
     if (!p) return;
     if (confirm(`Confirm discharge of patient ${p.name} (${p.id})?`)) {
@@ -1543,6 +1784,10 @@ function exportWardCsv() {
 }
 
 async function toggleIotStreaming() {
+    if (!isUserAdmin) {
+        showToast("Observer Mode: Telemetry stream is synchronized with the Ward Doctor.", "info");
+        return;
+    }
     isIotStreaming = !isIotStreaming;
     const btn = document.getElementById('iotToggleBtn');
     if (isIotStreaming) {
@@ -1567,7 +1812,9 @@ function escapeHtml(str) {
     }[c]));
 }
 
-// Initial draw and continuous cloud/backend synchronization (every 3 seconds)
+// Initial UI setup and continuous cloud/backend synchronization
+updateAuthUI();
+renderWardInterface();
 syncTelemetryLoop();
 setInterval(syncTelemetryLoop, 3000);
 </script>
