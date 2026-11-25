@@ -685,7 +685,7 @@
                 <input type="text" id="wardSearch" placeholder="Filter patient or bed ID..." oninput="handleFilterSearch()">
             </div>
             <button class="btn-success" onclick="requestPatientAdmission()">+ Admit Patient</button>
-            <button id="iotToggleBtn" class="btn-warn" onclick="toggleIotStreaming()">IoT Stream: Active (3s)</button>
+            <button id="iotToggleBtn" class="btn-warn" onclick="toggleIotStreaming()">ECG Stream: Live</button>
             <button class="btn-secondary" onclick="manualCloudSync()" title="Synchronize with global cloud ward">Sync Cloud</button>
             <button class="btn-secondary" onclick="exportWardCsv()">Export CSV</button>
             <button id="clearWardBtn" class="btn-danger" onclick="requestClearWard()" title="Reset all beds in ward">Clear Ward</button>
@@ -892,6 +892,7 @@ const CLOUD_API_URL = (window.location.hostname && window.location.hostname.incl
   : 'https://synergy-patient-monitoring.vercel.app/api/patients';
 
 let isSyncingToCloud = false;
+let writeCooldownUntil = 0;
 let isUserAdmin = false;
 let currentAdminToken = "";
 let currentDoctorName = "";
@@ -1041,19 +1042,61 @@ function requestDoctorAction(action, id) {
     else if (action === 'discharge') dischargeBed(id);
 }
 
-function persistPatients(syncCloud = true) {
+function saveLocalPatients() {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(wardPatients));
     } catch (e) {}
+}
+
+async function persistPatients(syncCloud = true) {
+    saveLocalPatients();
     if (syncCloud && isUserAdmin) {
-        pushToCloudSync();
+        writeCooldownUntil = Date.now() + 5000;
+        return await pushToCloudSync();
+    }
+    return { ok: true };
+}
+
+async function commitWardMutation(prevPatients, successMsg, modalToClose = null, buttonSelector = null) {
+    const btn = buttonSelector ? document.querySelector(buttonSelector) : null;
+    const origText = btn ? btn.innerText : null;
+    if (btn) {
+        btn.disabled = true;
+        btn.innerText = "Saving to Cloud...";
+    }
+    try {
+        const cloudRes = await persistPatients(true);
+        if (!cloudRes || !cloudRes.ok) {
+            wardPatients = prevPatients;
+            saveLocalPatients();
+            renderWardInterface();
+            const errMsg = (cloudRes && cloudRes.message) ? cloudRes.message : "Could not save ward update to cloud.";
+            showToast(errMsg, "alert");
+            alert("Cloud Save Failed:\n\n" + errMsg);
+            return false;
+        }
+        if (modalToClose) closeModal(modalToClose);
+        renderWardInterface();
+        if (successMsg) showToast(successMsg, "success");
+        return true;
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerText = origText;
+        }
     }
 }
 
 async function pushToCloudSync() {
-    if (!isUserAdmin || isSyncingToCloud) return;
+    if (!isUserAdmin) {
+        return { ok: false, message: "Doctor / Admin login required." };
+    }
+    if (isSyncingToCloud) {
+        return { ok: false, message: "Another cloud save is already in progress. Please retry in a moment." };
+    }
     try {
         isSyncingToCloud = true;
+        writeCooldownUntil = Date.now() + 5000;
         const res = await fetch(CLOUD_API_URL, {
             method: 'POST',
             headers: {
@@ -1065,21 +1108,34 @@ async function pushToCloudSync() {
                 patients: wardPatients
             })
         });
-        const data = await res.json();
+        let data = {};
+        try { data = await res.json(); } catch (e) {}
         if (res.ok && data.success) {
+            writeCooldownUntil = Date.now() + 3000;
             updateServerStatus(true, "Global Cloud Synced (Multi-Device)");
+            return { ok: true };
         } else if (res.status === 403) {
             showToast("Doctor session expired. Please sign in again.", "alert");
             logoutAdmin();
+            return { ok: false, status: 403, message: data.message || "Doctor session expired." };
+        } else {
+            const msg = data.message || `Cloud server returned HTTP ${res.status}.`;
+            updateServerStatus(false, "Cloud Save Error");
+            return { ok: false, status: res.status, code: data.code, message: msg };
         }
     } catch (e) {
         console.warn("Cloud push warning:", e);
+        updateServerStatus(false, "Cloud Server Unreachable");
+        return { ok: false, message: "Network error reaching cloud API." };
     } finally {
         isSyncingToCloud = false;
     }
 }
 
-async function fetchCloudData() {
+async function fetchCloudData(force = false) {
+    if (!force && (isSyncingToCloud || Date.now() < writeCooldownUntil)) {
+        return true;
+    }
     try {
         const res = await fetch(`${CLOUD_API_URL}?t=${Date.now()}`, { cache: 'no-store' });
         if (res.ok) {
@@ -1088,10 +1144,10 @@ async function fetchCloudData() {
                 const cloudPatients = result.data;
                 if (JSON.stringify(cloudPatients) !== JSON.stringify(wardPatients)) {
                     wardPatients = cloudPatients;
-                    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(wardPatients)); } catch (e) {}
+                    saveLocalPatients();
                     renderWardInterface();
                 }
-                updateServerStatus(true, "Global Cloud Active (All Users Synced)");
+                updateServerStatus(true, isUserAdmin ? "Global Cloud Synced (Doctor Mode)" : "Global Cloud Active (Live Observer)");
                 return true;
             }
         }
@@ -1104,7 +1160,7 @@ async function fetchCloudData() {
 
 async function manualCloudSync() {
     showToast("Syncing with Global Cloud Ward...", "info");
-    const ok = await fetchCloudData();
+    const ok = await fetchCloudData(true);
     if (ok) {
         showToast("Ward synchronized across all devices!", "success");
     } else {
@@ -1112,16 +1168,15 @@ async function manualCloudSync() {
     }
 }
 
-function clearAllPatients() {
+async function clearAllPatients() {
     if (wardPatients.length === 0) {
         showToast("Ward is already empty.", "info");
         return;
     }
     if (confirm("Are you sure you want to clear all admitted patients from the ward? This will clear across all devices.")) {
+        const prevPatients = JSON.parse(JSON.stringify(wardPatients));
         wardPatients = [];
-        persistPatients(true);
-        renderWardInterface();
-        showToast("All beds cleared successfully.", "info");
+        await commitWardMutation(prevPatients, "All beds cleared across all devices.");
     }
 }
 
@@ -1138,7 +1193,7 @@ function showToast(message, type = 'info') {
     toast.className = `toast ${type === 'success' ? 'toast-success' : type === 'alert' ? 'toast-alert' : ''}`;
     toast.innerHTML = `<span>${type === 'success' ? '✓' : type === 'alert' ? '⚠' : 'ℹ'}</span> <span>${escapeHtml(message)}</span>`;
     container.appendChild(toast);
-    setTimeout(() => { toast.remove(); }, 3000);
+    setTimeout(() => { toast.remove(); }, 4000);
 }
 
 // View Navigation
@@ -1158,6 +1213,7 @@ function changeView(view) {
 
 // Backend Connectivity Check & Cloud Sync Loop
 async function syncTelemetryLoop() {
+    if (document.hidden) return;
     let javaOk = false;
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         try {
@@ -1200,7 +1256,8 @@ async function syncTelemetryLoop() {
                             existing.risk = evaluateClinicalRisk(existing);
                         }
                     });
-                    persistPatients(true);
+                    saveLocalPatients();
+                    renderWardInterface();
                 }
                 updateServerStatus(true, "Java Backend Live (Port 8080)");
                 javaOk = true;
@@ -1214,11 +1271,7 @@ async function syncTelemetryLoop() {
 
     if (!javaOk) {
         await fetchCloudData();
-        if (isUserAdmin && isIotStreaming && wardPatients.length > 0) {
-            simulateTelemetryVariations();
-        }
     }
-    renderWardInterface();
 }
 
 function updateServerStatus(online, customLabel) {
@@ -1587,6 +1640,7 @@ async function executePatientAdmission() {
         return;
     }
 
+    const prevPatients = JSON.parse(JSON.stringify(wardPatients));
     const newPatient = {
         id: id.toUpperCase(),
         name: name,
@@ -1606,22 +1660,24 @@ async function executePatientAdmission() {
                   type === "Paralysis" ? "Pressure-relief mattress cycling & skin check" : "Multi-parameter continuous surveillance"
     };
 
+    newPatient.risk = evaluateClinicalRisk(newPatient);
     wardPatients.push(newPatient);
-    persistPatients();
 
-    // Reset inputs
-    document.getElementById('inputPId').value = "";
-    document.getElementById('inputPName').value = "";
-    document.getElementById('inputPAge').value = "";
+    const saved = await commitWardMutation(
+        prevPatients,
+        `Patient ${name} (${id.toUpperCase()}) admitted & synced to global cloud!`,
+        'addPatientModal',
+        '#addPatientModal .btn-success'
+    );
 
-    // Sync to Java backend if running
-    if (isJavaBackendOnline) {
-        fetch(`${BACKEND_URL}/api/patient/add?id=${encodeURIComponent(id)}&name=${encodeURIComponent(name)}&age=${age}&type=${encodeURIComponent(type)}`, { method: 'POST' }).catch(() => {});
+    if (saved) {
+        document.getElementById('inputPId').value = "";
+        document.getElementById('inputPName').value = "";
+        document.getElementById('inputPAge').value = "";
+        if (isJavaBackendOnline) {
+            fetch(`${BACKEND_URL}/api/patient/add?id=${encodeURIComponent(id)}&name=${encodeURIComponent(name)}&age=${age}&type=${encodeURIComponent(type)}`, { method: 'POST' }).catch(() => {});
+        }
     }
-
-    closeModal('addPatientModal');
-    renderWardInterface();
-    showToast(`Patient ${name} (${id.toUpperCase()}) admitted successfully!`, 'success');
 }
 
 async function executeVitalsUpdate() {
@@ -1632,6 +1688,7 @@ async function executeVitalsUpdate() {
         return;
     }
     const id = document.getElementById('vTargetId').value;
+    const prevPatients = JSON.parse(JSON.stringify(wardPatients));
     const p = wardPatients.find(x => x.id === id);
     if (!p) return;
 
@@ -1645,15 +1702,17 @@ async function executeVitalsUpdate() {
     p.temp = temp;
     p.respRate = rr;
     p.risk = evaluateClinicalRisk(p);
-    persistPatients();
 
-    if (isJavaBackendOnline) {
+    const saved = await commitWardMutation(
+        prevPatients,
+        `Telemetry updated for ${p.name}`,
+        'vitalsModal',
+        '#vitalsModal .btn-success'
+    );
+
+    if (saved && isJavaBackendOnline) {
         fetch(`${BACKEND_URL}/api/vitals/update?id=${encodeURIComponent(id)}&hr=${hr}&spo2=${spo2}&temp=${temp}&rr=${rr}`, { method: 'POST' }).catch(() => {});
     }
-
-    closeModal('vitalsModal');
-    renderWardInterface();
-    showToast(`Telemetry updated for ${p.name}`, 'success');
 }
 
 async function executeFluidRecord() {
@@ -1664,6 +1723,7 @@ async function executeFluidRecord() {
         return;
     }
     const id = document.getElementById('fTargetId').value;
+    const prevPatients = JSON.parse(JSON.stringify(wardPatients));
     const p = wardPatients.find(x => x.id === id);
     if (!p) return;
 
@@ -1674,18 +1734,20 @@ async function executeFluidRecord() {
     p.output += outAmount;
     p.balance = Math.round((p.intake - p.output) * 10) / 10;
     p.risk = evaluateClinicalRisk(p);
-    persistPatients();
 
-    if (isJavaBackendOnline) {
+    const saved = await commitWardMutation(
+        prevPatients,
+        `Fluid recorded for ${p.name}: Net ${p.balance >= 0 ? '+' : ''}${p.balance} ml`,
+        'fluidModal',
+        '#fluidModal .btn-success'
+    );
+
+    if (saved && isJavaBackendOnline) {
         fetch(`${BACKEND_URL}/api/fluid/record?id=${encodeURIComponent(id)}&intake=${inAmount}&output=${outAmount}`, { method: 'POST' }).catch(() => {});
     }
-
-    closeModal('fluidModal');
-    renderWardInterface();
-    showToast(`Fluid recorded for ${p.name}: Net ${p.balance >= 0 ? '+' : ''}${p.balance} ml`, 'success');
 }
 
-function dischargeBed(id) {
+async function dischargeBed(id) {
     if (!isUserAdmin) {
         showToast("Doctor / Admin login required to discharge patients.", "alert");
         openModal('loginModal');
@@ -1694,10 +1756,9 @@ function dischargeBed(id) {
     const p = wardPatients.find(x => x.id === id);
     if (!p) return;
     if (confirm(`Confirm discharge of patient ${p.name} (${p.id})?`)) {
+        const prevPatients = JSON.parse(JSON.stringify(wardPatients));
         wardPatients = wardPatients.filter(x => x.id !== id);
-        persistPatients();
-        renderWardInterface();
-        showToast(`Patient ${p.name} discharged`, 'info');
+        await commitWardMutation(prevPatients, `Patient ${p.name} discharged`);
     }
 }
 
@@ -1782,20 +1843,16 @@ function exportWardCsv() {
 }
 
 async function toggleIotStreaming() {
-    if (!isUserAdmin) {
-        showToast("Observer Mode: Telemetry stream is synchronized with the Ward Doctor.", "info");
-        return;
-    }
     isIotStreaming = !isIotStreaming;
     const btn = document.getElementById('iotToggleBtn');
     if (isIotStreaming) {
-        btn.innerText = "IoT Stream: Active (3s)";
+        btn.innerText = "ECG Stream: Live";
         btn.className = "btn-warn";
-        showToast("IoT Telemetry Simulation Resumed", "info");
+        showToast("Live Lead II ECG Waveform Resumed", "info");
     } else {
-        btn.innerText = "IoT Stream: Paused";
+        btn.innerText = "ECG Stream: Paused";
         btn.className = "btn-secondary";
-        showToast("IoT Telemetry Simulation Paused", "info");
+        showToast("Live Lead II ECG Waveform Paused", "info");
     }
 
     if (isJavaBackendOnline) {
@@ -1810,11 +1867,24 @@ function escapeHtml(str) {
     }[c]));
 }
 
+// Smooth client-side Lead II ECG trace sweep (0 cloud writes)
+setInterval(() => {
+    if (document.hidden || !isIotStreaming || currentActiveView !== 'grid' || wardPatients.length === 0) return;
+    wardPatients.forEach(p => {
+        if (!activeSearchQuery || p.id.toLowerCase().includes(activeSearchQuery) || p.name.toLowerCase().includes(activeSearchQuery) || p.condition.toLowerCase().includes(activeSearchQuery)) {
+            animateEcgRhythm(`canvas-${p.id}`, p.heartRate);
+        }
+    });
+}, 120);
+
 // Initial UI setup and continuous cloud/backend synchronization
 updateAuthUI();
 renderWardInterface();
 syncTelemetryLoop();
-setInterval(syncTelemetryLoop, 3000);
+setInterval(syncTelemetryLoop, 5000);
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) syncTelemetryLoop();
+});
 </script>
 </body>
 </html>
