@@ -103,6 +103,7 @@ module.exports = async function handler(req, res) {
     if (body.action === 'login') {
       const { username, password } = body;
       if ((username === 'admin' || username === 'doctor') && (password === 'synergy2026' || password === 'admin123')) {
+        console.log('[POST /api/patients] Doctor login success:', username);
         return res.status(200).json({
           success: true,
           token: ADMIN_TOKEN,
@@ -110,23 +111,34 @@ module.exports = async function handler(req, res) {
           doctorName: 'Dr. Synergy (Ward Lead)'
         });
       }
+      console.warn('[POST /api/patients] Login rejected for user:', username);
       return res.status(401).json({ success: false, message: 'Invalid admin or doctor credentials.' });
     }
 
     const headers = req.headers || {};
     const token = headers['x-admin-token'] || body.adminToken;
     if (token !== ADMIN_TOKEN) {
+      console.warn('[POST /api/patients] Unauthorized write blocked (403)');
       return res.status(403).json({
         success: false,
         message: 'Unauthorized: Only the logged-in Ward Administrator / Doctor can admit or modify patients.'
       });
     }
 
-    const patients = Array.isArray(body.patients) ? body.patients : [];
+    if (!Array.isArray(body.patients)) {
+      console.warn('[POST /api/patients] Invalid payload missing patients array (400)');
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid request payload: patients array is required.'
+      });
+    }
+
+    const patients = body.patients;
 
     if (kv) {
       try {
         await writeWardToKv(kv, patients);
+        console.log('[POST /api/patients] Saved to Redis, count:', patients.length);
         return res.status(200).json({
           success: true,
           storage: 'redis',

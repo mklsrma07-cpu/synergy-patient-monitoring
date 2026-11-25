@@ -684,7 +684,7 @@
                 <span class="search-icon">&#x2315;</span>
                 <input type="text" id="wardSearch" placeholder="Filter patient or bed ID..." oninput="handleFilterSearch()">
             </div>
-            <button class="btn-success" onclick="requestPatientAdmission()">+ Admit Patient</button>
+            <button id="admitBtn" class="btn-success" onclick="requestPatientAdmission()">+ Admit Patient</button>
             <button id="iotToggleBtn" class="btn-warn" onclick="toggleIotStreaming()">ECG Stream: Live</button>
             <button class="btn-secondary" onclick="manualCloudSync()" title="Synchronize with global cloud ward">Sync Cloud</button>
             <button class="btn-secondary" onclick="exportWardCsv()">Export CSV</button>
@@ -739,15 +739,15 @@
         <h2>Admit New Patient to Ward</h2>
         <div class="form-row">
             <label>Patient ID (e.g. P101, P102)</label>
-            <input id="inputPId" placeholder="e.g. P101">
+            <input id="inputPId" placeholder="e.g. P101" onkeydown="if(event.key==='Enter') executePatientAdmission()">
         </div>
         <div class="form-row">
             <label>Patient Full Name</label>
-            <input id="inputPName" placeholder="Enter patient's name">
+            <input id="inputPName" placeholder="Enter patient's name" onkeydown="if(event.key==='Enter') executePatientAdmission()">
         </div>
         <div class="form-row">
             <label>Age (1 - 120)</label>
-            <input id="inputPAge" type="number" min="1" max="120" placeholder="e.g. 48">
+            <input id="inputPAge" type="number" min="1" max="120" placeholder="e.g. 48" onkeydown="if(event.key==='Enter') executePatientAdmission()">
         </div>
         <div class="form-row">
             <label>Patient Condition Category</label>
@@ -760,13 +760,45 @@
         <div class="form-row">
             <label>Baseline Vitals (Optional)</label>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-                <input id="inputPHr" type="number" placeholder="Heart Rate (bpm)" value="75">
-                <input id="inputPSpo2" type="number" placeholder="SpO2 (%)" value="98">
+                <input id="inputPHr" type="number" placeholder="Heart Rate (bpm)" value="75" onkeydown="if(event.key==='Enter') executePatientAdmission()">
+                <input id="inputPSpo2" type="number" placeholder="SpO2 (%)" value="98" onkeydown="if(event.key==='Enter') executePatientAdmission()">
             </div>
         </div>
         <div class="modal-btns">
             <button class="btn-secondary" onclick="closeModal('addPatientModal')">Cancel</button>
             <button class="btn-success" onclick="executePatientAdmission()">Admit Patient</button>
+        </div>
+    </div>
+</div>
+
+<!-- 1B. Edit Patient Details Modal -->
+<div id="editPatientModal" class="modal-backdrop">
+    <div class="modal-window">
+        <h2>Edit Patient Details</h2>
+        <input type="hidden" id="editTargetId">
+        <div class="form-row">
+            <label>Patient ID</label>
+            <input id="editIdDisplay" disabled style="opacity:0.75">
+        </div>
+        <div class="form-row">
+            <label>Patient Full Name</label>
+            <input id="editPName" placeholder="Enter patient's name" onkeydown="if(event.key==='Enter') executePatientEdit()">
+        </div>
+        <div class="form-row">
+            <label>Age (1 - 120)</label>
+            <input id="editPAge" type="number" min="1" max="120" onkeydown="if(event.key==='Enter') executePatientEdit()">
+        </div>
+        <div class="form-row">
+            <label>Patient Condition Category</label>
+            <select id="editPType">
+                <option value="Coma">Coma Patient (Bed-Bound · Glasgow Coma Scale Monitored)</option>
+                <option value="Paralysis">Paralysis Patient (Limited Mobility · Bed-sore Ulcer Protocol)</option>
+                <option value="ICU">ICU Critical Patient (Multi-parameter Surveillance)</option>
+            </select>
+        </div>
+        <div class="modal-btns">
+            <button class="btn-secondary" onclick="closeModal('editPatientModal')">Cancel</button>
+            <button class="btn-success" onclick="executePatientEdit()">Save Changes</button>
         </div>
     </div>
 </div>
@@ -782,19 +814,19 @@
         </div>
         <div class="form-row">
             <label>Heart Rate (MAX30102 - 20 to 260 bpm)</label>
-            <input id="vInputHr" type="number" step="0.5">
+            <input id="vInputHr" type="number" step="0.5" onkeydown="if(event.key==='Enter') executeVitalsUpdate()">
         </div>
         <div class="form-row">
             <label>SpO2 Oxygen Saturation (40 to 100 %)</label>
-            <input id="vInputSpo2" type="number" step="0.5">
+            <input id="vInputSpo2" type="number" step="0.5" onkeydown="if(event.key==='Enter') executeVitalsUpdate()">
         </div>
         <div class="form-row">
             <label>Body Temperature (DS18B20 - 25 to 45 °C)</label>
-            <input id="vInputTemp" type="number" step="0.1">
+            <input id="vInputTemp" type="number" step="0.1" onkeydown="if(event.key==='Enter') executeVitalsUpdate()">
         </div>
         <div class="form-row">
             <label>Respiratory Rate (4 to 80 breaths/min)</label>
-            <input id="vInputRr" type="number" step="0.5">
+            <input id="vInputRr" type="number" step="0.5" onkeydown="if(event.key==='Enter') executeVitalsUpdate()">
         </div>
         <div class="modal-btns">
             <button class="btn-secondary" onclick="closeModal('vitalsModal')">Cancel</button>
@@ -814,11 +846,11 @@
         </div>
         <div class="form-row">
             <label>IV Infusion / Oral Fluid Added (ml)</label>
-            <input id="fInputIntake" type="number" value="250" min="0">
+            <input id="fInputIntake" type="number" value="250" min="0" onkeydown="if(event.key==='Enter') executeFluidRecord()">
         </div>
         <div class="form-row">
             <label>Catheter Urine / Drain Output Added (ml)</label>
-            <input id="fInputOutput" type="number" value="180" min="0">
+            <input id="fInputOutput" type="number" value="180" min="0" onkeydown="if(event.key==='Enter') executeFluidRecord()">
         </div>
         <div class="modal-btns">
             <button class="btn-secondary" onclick="closeModal('fluidModal')">Cancel</button>
@@ -893,6 +925,7 @@ const CLOUD_API_URL = (window.location.hostname && window.location.hostname.incl
 
 let isSyncingToCloud = false;
 let writeCooldownUntil = 0;
+let lastLocalMutationAt = 0;
 let isUserAdmin = false;
 let currentAdminToken = "";
 let currentDoctorName = "";
@@ -910,9 +943,11 @@ try {
 
 function updateAuthUI() {
     const authPill = document.getElementById('authPill');
-    const authRoleLabel = document.getElementById('authRoleLabel');
     const authBtn = document.getElementById('authBtn');
     const viewerBanner = document.getElementById('viewerBanner');
+    const admitBtn = document.getElementById('admitBtn');
+    const clearWardBtn = document.getElementById('clearWardBtn');
+    const connLabel = document.getElementById('connLabel');
 
     if (isUserAdmin) {
         if (authPill) {
@@ -927,8 +962,11 @@ function updateAuthUI() {
             authBtn.innerText = "Logout";
             authBtn.onclick = logoutAdmin;
         }
-        if (viewerBanner) {
-            viewerBanner.style.display = 'none';
+        if (admitBtn) admitBtn.innerText = "+ Admit Patient";
+        if (clearWardBtn) clearWardBtn.innerText = "Clear Ward";
+        if (viewerBanner) viewerBanner.style.display = 'none';
+        if (connLabel && !isJavaBackendOnline) {
+            connLabel.innerText = "Global Cloud Synced (Doctor Mode)";
         }
     } else {
         if (authPill) {
@@ -943,8 +981,11 @@ function updateAuthUI() {
             authBtn.innerText = "🔐 Doctor Login";
             authBtn.onclick = () => openModal('loginModal');
         }
-        if (viewerBanner) {
-            viewerBanner.style.display = 'flex';
+        if (admitBtn) admitBtn.innerText = "🔒 + Admit Patient";
+        if (clearWardBtn) clearWardBtn.innerText = "🔒 Clear Ward";
+        if (viewerBanner) viewerBanner.style.display = 'flex';
+        if (connLabel && !isJavaBackendOnline) {
+            connLabel.innerText = "Global Cloud Active (Live Observer)";
         }
     }
 }
@@ -1033,12 +1074,19 @@ function requestClearWard() {
 
 function requestDoctorAction(action, id) {
     if (!isUserAdmin) {
-        showToast(`Doctor login required to ${action} patients.`, "alert");
+        const actionMsg = {
+            vitals: "update patient vitals",
+            fluid: "record patient fluids",
+            edit: "edit patient details",
+            discharge: "discharge patients"
+        }[action] || "modify patient data";
+        showToast(`Doctor login required to ${actionMsg}.`, "alert");
         openModal('loginModal');
         return;
     }
     if (action === 'vitals') openVitalsModal(id);
     else if (action === 'fluid') openFluidModal(id);
+    else if (action === 'edit') openEditModal(id);
     else if (action === 'discharge') dischargeBed(id);
 }
 
@@ -1049,6 +1097,7 @@ function saveLocalPatients() {
 }
 
 async function persistPatients(syncCloud = true) {
+    lastLocalMutationAt = Date.now();
     saveLocalPatients();
     if (syncCloud && isUserAdmin) {
         writeCooldownUntil = Date.now() + 5000;
@@ -1071,6 +1120,7 @@ async function commitWardMutation(prevPatients, successMsg, modalToClose = null,
         }
     };
     try {
+        lastLocalMutationAt = Date.now();
         const cloudRes = await persistPatients(true);
         restoreBtn();
         if (!cloudRes || !cloudRes.ok) {
@@ -1098,6 +1148,8 @@ async function pushToCloudSync() {
     if (isSyncingToCloud) {
         return { ok: false, message: "Another cloud save is already in progress. Please retry in a moment." };
     }
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
     try {
         isSyncingToCloud = true;
         writeCooldownUntil = Date.now() + 5000;
@@ -1110,13 +1162,14 @@ async function pushToCloudSync() {
             body: JSON.stringify({
                 adminToken: currentAdminToken,
                 patients: wardPatients
-            })
+            }),
+            signal: controller.signal
         });
         let data = {};
         try { data = await res.json(); } catch (e) {}
         if (res.ok && data.success) {
-            writeCooldownUntil = Date.now() + 3000;
-            updateServerStatus(true, "Global Cloud Synced (Multi-Device)");
+            writeCooldownUntil = Date.now() + 4000;
+            updateServerStatus(true, "Global Cloud Synced (Doctor Mode)");
             return { ok: true };
         } else if (res.status === 403) {
             showToast("Doctor session expired. Please sign in again.", "alert");
@@ -1130,13 +1183,15 @@ async function pushToCloudSync() {
     } catch (e) {
         console.warn("Cloud push warning:", e);
         updateServerStatus(false, "Cloud Server Unreachable");
-        return { ok: false, message: "Network error reaching cloud API." };
+        return { ok: false, message: e?.name === 'AbortError' ? "Cloud save timed out. Please check your connection." : "Network error reaching cloud API." };
     } finally {
+        clearTimeout(timeoutId);
         isSyncingToCloud = false;
     }
 }
 
 async function fetchCloudData(force = false) {
+    const reqStartedAt = Date.now();
     if (!force && (isSyncingToCloud || Date.now() < writeCooldownUntil)) {
         return true;
     }
@@ -1144,6 +1199,9 @@ async function fetchCloudData(force = false) {
         const res = await fetch(`${CLOUD_API_URL}?t=${Date.now()}`, { cache: 'no-store' });
         if (res.ok) {
             const result = await res.json();
+            if (!force && (isSyncingToCloud || Date.now() < writeCooldownUntil || lastLocalMutationAt > reqStartedAt)) {
+                return true;
+            }
             if (result && Array.isArray(result.data)) {
                 const cloudPatients = result.data;
                 if (JSON.stringify(cloudPatients) !== JSON.stringify(wardPatients)) {
@@ -1292,12 +1350,28 @@ function updateServerStatus(online, customLabel) {
 }
 
 function evaluateClinicalRisk(p) {
-    if (p.spo2 < 90) return "CRITICAL: Severe Hypoxia (SpO2 < 90%)";
-    if (p.spo2 < 95) return "MILD HYPOXIA ALERT: SpO2 < 95%";
-    if (p.heartRate < 50 || p.heartRate > 120) return "WARNING: Arrhythmia Detected";
-    if (p.temp > 38.0) return "WARNING: Pyrexia / Elevated Temp";
-    if (p.balance > 1500) return "WARNING: Fluid Overload Risk";
-    if (p.balance < -1000) return "WARNING: Dehydration / Fluid Deficit";
+    const spo2 = Number(p.spo2 ?? 98);
+    const hr = Number(p.heartRate ?? 75);
+    const temp = Number(p.temp ?? 36.8);
+    const bal = Number(p.balance ?? 0);
+
+    const criticals = [];
+    const warnings = [];
+
+    if (spo2 < 90) criticals.push("Severe Hypoxia (SpO2 < 90%)");
+    else if (spo2 < 95) warnings.push("Mild Hypoxia (SpO2 < 95%)");
+
+    if (hr < 50 || hr > 120) warnings.push("Arrhythmia Detected");
+    if (temp > 38.0) warnings.push("Pyrexia / Elevated Temp");
+    if (bal > 1500) warnings.push("Fluid Overload Risk");
+    else if (bal < -1000) warnings.push("Fluid Deficit");
+
+    if (criticals.length > 0) {
+        return `CRITICAL: ${criticals.concat(warnings).join(" · ")}`;
+    }
+    if (warnings.length > 0) {
+        return `WARNING: ${warnings.join(" · ")}`;
+    }
     return "Stable Baseline";
 }
 
@@ -1444,11 +1518,13 @@ function renderWardInterface() {
                 <!-- Quick Action Buttons -->
                 <div class="card-actions">
                     ${isUserAdmin ? `
+                    <button class="btn-secondary" onclick="openEditModal('${p.id}')">Edit</button>
                     <button class="btn-secondary" onclick="openVitalsModal('${p.id}')">Vitals</button>
                     <button class="btn-secondary" onclick="openFluidModal('${p.id}')">Fluid</button>
                     <button class="btn-secondary" onclick="displayClinicalReport('${p.id}')">Report</button>
                     <button class="btn-danger" onclick="dischargeBed('${p.id}')" title="Discharge patient">Discharge</button>
                     ` : `
+                    <button class="btn-secondary" style="opacity:0.75;" onclick="requestDoctorAction('edit', '${p.id}')" title="Doctor login required">🔒 Edit</button>
                     <button class="btn-secondary" style="opacity:0.75;" onclick="requestDoctorAction('vitals', '${p.id}')" title="Doctor login required">🔒 Vitals</button>
                     <button class="btn-secondary" style="opacity:0.75;" onclick="requestDoctorAction('fluid', '${p.id}')" title="Doctor login required">🔒 Fluid</button>
                     <button class="btn-secondary" onclick="displayClinicalReport('${p.id}')">Report</button>
@@ -1590,6 +1666,17 @@ function openModal(id) {
 }
 function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
+function openEditModal(id) {
+    const p = wardPatients.find(x => x.id === id);
+    if (!p) return;
+    document.getElementById('editTargetId').value = p.id;
+    document.getElementById('editIdDisplay').value = p.id;
+    document.getElementById('editPName').value = p.name;
+    document.getElementById('editPAge').value = p.age;
+    document.getElementById('editPType').value = p.condition || 'Coma';
+    openModal('editPatientModal');
+}
+
 function openVitalsModal(id) {
     const p = wardPatients.find(x => x.id === id);
     if (!p) return;
@@ -1612,6 +1699,23 @@ function openFluidModal(id) {
     openModal('fluidModal');
 }
 
+// Sanitize patient ID so it cannot break selectors/handlers
+function sanitizePatientId(raw) {
+    return String(raw || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+}
+
+function defaultMobilityFor(type) {
+    if (type === "Coma") return "Comatose / Completely Bed-Bound (MPU6050 Accelerometer)";
+    if (type === "Paralysis") return "Limited Mobility (Pressure-Relief Mat)";
+    return "ICU Ventilator Dependent";
+}
+
+function defaultProtocolFor(type) {
+    if (type === "Coma") return "Q2H Repositioning protocol & hourly GCS check";
+    if (type === "Paralysis") return "Pressure-relief mattress cycling & skin check";
+    return "Multi-parameter continuous surveillance";
+}
+
 // User-Driven Patient Admission
 async function executePatientAdmission() {
     if (!isUserAdmin) {
@@ -1620,15 +1724,17 @@ async function executePatientAdmission() {
         openModal('loginModal');
         return;
     }
-    const id = document.getElementById('inputPId').value.trim();
+    const id = sanitizePatientId(document.getElementById('inputPId').value);
     const name = document.getElementById('inputPName').value.trim();
-    const age = parseInt(document.getElementById('inputPAge').value);
+    const age = parseInt(document.getElementById('inputPAge').value, 10);
     const type = document.getElementById('inputPType').value;
-    const hr = parseFloat(document.getElementById('inputPHr').value) || 75.0;
-    const spo2 = parseFloat(document.getElementById('inputPSpo2').value) || 98.0;
+    const hrVal = parseFloat(document.getElementById('inputPHr').value);
+    const spo2Val = parseFloat(document.getElementById('inputPSpo2').value);
+    const hr = isNaN(hrVal) ? 75.0 : hrVal;
+    const spo2 = isNaN(spo2Val) ? 98.0 : spo2Val;
 
     if (!id) {
-        alert("Please enter a Patient ID (e.g. P101).");
+        alert("Please enter a valid Patient ID (letters/numbers, e.g. P101).");
         return;
     }
     if (!name) {
@@ -1639,14 +1745,14 @@ async function executePatientAdmission() {
         alert("Please enter an age between 1 and 120.");
         return;
     }
-    if (wardPatients.some(p => p.id.toUpperCase() === id.toUpperCase())) {
+    if (wardPatients.some(p => p.id.toUpperCase() === id)) {
         alert(`A patient with ID '${id}' is already admitted in the ward.`);
         return;
     }
 
     const prevPatients = JSON.parse(JSON.stringify(wardPatients));
     const newPatient = {
-        id: id.toUpperCase(),
+        id: id,
         name: name,
         age: age,
         condition: type,
@@ -1658,10 +1764,8 @@ async function executePatientAdmission() {
         intake: 0.0,
         output: 0.0,
         balance: 0.0,
-        mobility: type === "Coma" ? "Comatose / Completely Bed-Bound (MPU6050 Accelerometer)" :
-                  type === "Paralysis" ? "Limited Mobility (Pressure-Relief Mat)" : "ICU Ventilator Dependent",
-        protocol: type === "Coma" ? "Q2H Repositioning protocol & hourly GCS check" :
-                  type === "Paralysis" ? "Pressure-relief mattress cycling & skin check" : "Multi-parameter continuous surveillance"
+        mobility: defaultMobilityFor(type),
+        protocol: defaultProtocolFor(type)
     };
 
     newPatient.risk = evaluateClinicalRisk(newPatient);
@@ -1669,7 +1773,7 @@ async function executePatientAdmission() {
 
     const saved = await commitWardMutation(
         prevPatients,
-        `Patient ${name} (${id.toUpperCase()}) admitted & synced to global cloud!`,
+        `Patient ${name} (${id}) admitted & synced to global cloud!`,
         'addPatientModal',
         '#addPatientModal .btn-success'
     );
@@ -1684,6 +1788,45 @@ async function executePatientAdmission() {
     }
 }
 
+async function executePatientEdit() {
+    if (!isUserAdmin) {
+        showToast("Doctor / Admin login required to edit patient details.", "alert");
+        closeModal('editPatientModal');
+        openModal('loginModal');
+        return;
+    }
+    const id = document.getElementById('editTargetId').value;
+    const name = document.getElementById('editPName').value.trim();
+    const age = parseInt(document.getElementById('editPAge').value, 10);
+    const type = document.getElementById('editPType').value;
+
+    if (!name) {
+        alert("Please enter the patient's full name.");
+        return;
+    }
+    if (isNaN(age) || age <= 0 || age > 120) {
+        alert("Please enter an age between 1 and 120.");
+        return;
+    }
+
+    const prevPatients = JSON.parse(JSON.stringify(wardPatients));
+    const p = wardPatients.find(x => x.id === id);
+    if (!p) return;
+
+    p.name = name;
+    p.age = age;
+    p.condition = type;
+    p.mobility = defaultMobilityFor(type);
+    p.protocol = defaultProtocolFor(type);
+
+    await commitWardMutation(
+        prevPatients,
+        `Updated patient ${name} (${p.id}) & saved to cloud!`,
+        'editPatientModal',
+        '#editPatientModal .btn-success'
+    );
+}
+
 async function executeVitalsUpdate() {
     if (!isUserAdmin) {
         showToast("Doctor / Admin login required to update vitals.", "alert");
@@ -1692,14 +1835,19 @@ async function executeVitalsUpdate() {
         return;
     }
     const id = document.getElementById('vTargetId').value;
-    const prevPatients = JSON.parse(JSON.stringify(wardPatients));
-    const p = wardPatients.find(x => x.id === id);
-    if (!p) return;
-
     const hr = parseFloat(document.getElementById('vInputHr').value);
     const spo2 = parseFloat(document.getElementById('vInputSpo2').value);
     const temp = parseFloat(document.getElementById('vInputTemp').value);
     const rr = parseFloat(document.getElementById('vInputRr').value);
+
+    if ([hr, spo2, temp, rr].some(v => isNaN(v))) {
+        alert("Please enter valid numeric values for all four vitals (Heart Rate, SpO2, Temp, Resp Rate).");
+        return;
+    }
+
+    const prevPatients = JSON.parse(JSON.stringify(wardPatients));
+    const p = wardPatients.find(x => x.id === id);
+    if (!p) return;
 
     p.heartRate = hr;
     p.spo2 = spo2;
@@ -1709,7 +1857,7 @@ async function executeVitalsUpdate() {
 
     const saved = await commitWardMutation(
         prevPatients,
-        `Telemetry updated for ${p.name}`,
+        `Telemetry updated for ${p.name} & saved to cloud!`,
         'vitalsModal',
         '#vitalsModal .btn-success'
     );
@@ -1727,21 +1875,28 @@ async function executeFluidRecord() {
         return;
     }
     const id = document.getElementById('fTargetId').value;
+    const rawIn = document.getElementById('fInputIntake').value.trim();
+    const rawOut = document.getElementById('fInputOutput').value.trim();
+    const inAmount = rawIn === '' ? 0 : parseFloat(rawIn);
+    const outAmount = rawOut === '' ? 0 : parseFloat(rawOut);
+
+    if (isNaN(inAmount) || isNaN(outAmount) || inAmount < 0 || outAmount < 0) {
+        alert("Please enter valid non-negative numbers for fluid intake and output.");
+        return;
+    }
+
     const prevPatients = JSON.parse(JSON.stringify(wardPatients));
     const p = wardPatients.find(x => x.id === id);
     if (!p) return;
 
-    const inAmount = parseFloat(document.getElementById('fInputIntake').value) || 0;
-    const outAmount = parseFloat(document.getElementById('fInputOutput').value) || 0;
-
-    p.intake += inAmount;
-    p.output += outAmount;
+    p.intake = Number(p.intake || 0) + inAmount;
+    p.output = Number(p.output || 0) + outAmount;
     p.balance = Math.round((p.intake - p.output) * 10) / 10;
     p.risk = evaluateClinicalRisk(p);
 
     const saved = await commitWardMutation(
         prevPatients,
-        `Fluid recorded for ${p.name}: Net ${p.balance >= 0 ? '+' : ''}${p.balance} ml`,
+        `Fluid recorded for ${p.name}: Net ${p.balance >= 0 ? '+' : ''}${p.balance} ml (saved to cloud)`,
         'fluidModal',
         '#fluidModal .btn-success'
     );
