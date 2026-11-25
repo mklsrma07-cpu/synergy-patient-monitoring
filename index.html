@@ -1064,8 +1064,15 @@ async function commitWardMutation(prevPatients, successMsg, modalToClose = null,
         btn.disabled = true;
         btn.innerText = "Saving to Cloud...";
     }
+    const restoreBtn = () => {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerText = origText;
+        }
+    };
     try {
         const cloudRes = await persistPatients(true);
+        restoreBtn();
         if (!cloudRes || !cloudRes.ok) {
             wardPatients = prevPatients;
             saveLocalPatients();
@@ -1080,10 +1087,7 @@ async function commitWardMutation(prevPatients, successMsg, modalToClose = null,
         if (successMsg) showToast(successMsg, "success");
         return true;
     } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerText = origText;
-        }
+        restoreBtn();
     }
 }
 
