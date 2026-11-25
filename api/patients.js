@@ -155,31 +155,11 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    try {
-      await put('ward.json', JSON.stringify({ patients, updatedAt: Date.now() }), {
-        access: 'public',
-        addRandomSuffix: false,
-        allowOverwrite: true
-      });
-      return res.status(200).json({
-        success: true,
-        storage: 'blob',
-        count: patients.length,
-        message: 'Ward synced to cloud successfully.'
-      });
-    } catch (err) {
-      console.error('Blob update error:', err);
-      const isSuspended =
-        err?.name === 'BlobStoreSuspendedError' ||
-        String(err?.message || '').toLowerCase().includes('suspended');
-      return res.status(isSuspended ? 503 : 500).json({
-        success: false,
-        code: isSuspended ? 'BLOB_SUSPENDED' : 'BLOB_ERROR',
-        message: isSuspended
-          ? 'Cloud Blob store is suspended (monthly free quota exceeded). Connect Upstash Redis to resume cloud writes.'
-          : (err?.message || 'Cloud storage update failed.')
-      });
-    }
+    return res.status(503).json({
+      success: false,
+      code: 'REDIS_CONFIG_MISSING',
+      message: 'Cloud Upstash Redis configuration not detected on server. Please check environment variables.'
+    });
   }
 
   return res.status(405).json({ message: 'Method not allowed' });
