@@ -334,27 +334,28 @@
 
     /* ECG Rhythm Waveform (Realistic Clinical Monitor Look) */
     .ecg-box {
-        position: relative;
         margin-bottom: 12px;
-        background: #020406;
-        border-radius: 4px;
+        background: #010408;
+        border-radius: 6px;
         border: 1px solid #141c24;
         overflow: hidden;
     }
+    .ecg-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 4px 8px;
+        background: #060b11;
+        border-bottom: 1px solid #141c24;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.65rem;
+        font-weight: 600;
+        letter-spacing: 0.4px;
+    }
     .ecg-canvas {
         width: 100%;
-        height: 40px;
+        height: 44px;
         display: block;
-    }
-    .ecg-label {
-        position: absolute;
-        top: 3px;
-        left: 6px;
-        font-size: 0.62rem;
-        color: #475569;
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        letter-spacing: 0.4px;
-        pointer-events: none;
     }
 
     /* 4-Vital Telemetry Grid (Using the 4 purposeful colors) */
@@ -1204,6 +1205,7 @@ async function fetchCloudData(force = false) {
             }
             if (result && Array.isArray(result.data)) {
                 const cloudPatients = result.data;
+                cloudPatients.forEach(p => { p.risk = evaluateClinicalRisk(p); });
                 if (JSON.stringify(cloudPatients) !== JSON.stringify(wardPatients)) {
                     wardPatients = cloudPatients;
                     saveLocalPatients();
@@ -1475,8 +1477,11 @@ function renderWardInterface() {
 
                 <!-- Realistic Clinical ECG Waveform -->
                 <div class="ecg-box" style="${p.heartRate <= 0 ? 'border-color:rgba(239, 68, 68, 0.4);' : ''}">
-                    <span class="ecg-label" style="${p.heartRate <= 0 ? 'color:#ef4444;font-weight:700;' : ''}">${p.heartRate <= 0 ? 'LEAD II &bull; ASYSTOLE ALARM (FLATLINE)' : 'LEAD II &bull; 25mm/s &bull; LIVE'}</span>
-                    <canvas class="ecg-canvas" id="canvas-${p.id}" width="380" height="40"></canvas>
+                    <div class="ecg-header" style="${p.heartRate <= 0 ? 'background:rgba(239, 68, 68, 0.12);border-bottom-color:rgba(239, 68, 68, 0.3);' : ''}">
+                        <span style="${p.heartRate <= 0 ? 'color:#ef4444;' : 'color:var(--c-teal);'}">${p.heartRate <= 0 ? 'LEAD II &bull; ASYSTOLE ALARM' : 'LEAD II &bull; 25mm/s &bull; LIVE'}</span>
+                        <span style="${p.heartRate <= 0 ? 'color:#ef4444;font-weight:700;' : 'color:var(--c-teal);'}">${p.heartRate <= 0 ? '0 BPM &bull; FLATLINE' : p.heartRate.toFixed(0) + ' BPM'}</span>
+                    </div>
+                    <canvas class="ecg-canvas" id="canvas-${p.id}" width="380" height="44"></canvas>
                 </div>
 
                 <!-- 4 Real-Time Vitals in 4-Color Theme -->
@@ -1714,13 +1719,6 @@ function animateEcgRhythm(canvasId, rawHr, deltaMs = 33) {
         }
         ctx.stroke();
         ctx.restore();
-
-        // Clinical asystole heads-up display
-        ctx.fillStyle = '#ef4444';
-        ctx.font = '700 8.5px monospace';
-        ctx.fillText('LEAD II · ASYSTOLE', 8, 11);
-        ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
-        ctx.fillText('0 BPM · FLATLINE', w - 104, 11);
     } else {
         // Living sinus rhythm wave in glowing mint-teal
         ctx.strokeStyle = '#37e0bd';
@@ -1737,13 +1735,6 @@ function animateEcgRhythm(canvasId, rawHr, deltaMs = 33) {
         }
         ctx.stroke();
         ctx.restore();
-
-        // Lead II header & live BPM rate
-        ctx.fillStyle = 'rgba(55, 224, 189, 0.75)';
-        ctx.font = '600 8.5px monospace';
-        ctx.fillText('LEAD II · 25mm/s', 8, 11);
-        ctx.fillStyle = 'rgba(55, 224, 189, 0.9)';
-        ctx.fillText(`${hr.toFixed(0)} BPM`, w - 48, 11);
     }
 }
 
@@ -2119,24 +2110,15 @@ function escapeHtml(str) {
     }[c]));
 }
 
-// Smooth 60 FPS Lead II ECG trace sweep (pure client-side canvas rendering, 0 cloud writes)
-let lastEcgTimestamp = performance.now();
-function ecgWaveLoop(now) {
-    requestAnimationFrame(ecgWaveLoop);
-    if (document.hidden || !isIotStreaming || currentActiveView !== 'grid' || wardPatients.length === 0) {
-        lastEcgTimestamp = now;
-        return;
-    }
-    const deltaMs = Math.min(100, Math.max(10, now - lastEcgTimestamp));
-    lastEcgTimestamp = now;
-
+// Smooth 30 FPS Lead II ECG trace sweep (pure client-side canvas rendering, 0 cloud writes)
+setInterval(() => {
+    if (document.hidden || !isIotStreaming || currentActiveView !== 'grid' || wardPatients.length === 0) return;
     wardPatients.forEach(p => {
         if (!activeSearchQuery || p.id.toLowerCase().includes(activeSearchQuery) || p.name.toLowerCase().includes(activeSearchQuery) || p.condition.toLowerCase().includes(activeSearchQuery)) {
-            animateEcgRhythm(`canvas-${p.id}`, p.heartRate, deltaMs);
+            animateEcgRhythm(`canvas-${p.id}`, p.heartRate, 35);
         }
     });
-}
-requestAnimationFrame(ecgWaveLoop);
+}, 35);
 
 // Initial UI setup and continuous cloud/backend synchronization
 updateAuthUI();
